@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Doorbell Local",
+        "description": "Connect to the doorbell MSG server (found via UART: ifconfig eth0). A DHCP reservation is recommended.",
+        "data": {
+          "host": "IP address",
+          "port": "TCP port",
+          "scan_interval": "Refresh interval (seconds)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not reach the doorbell on this address/port."
+    },
+    "abort": {
+      "already_configured": "This doorbell is already configured."
+    }
+  }
+}

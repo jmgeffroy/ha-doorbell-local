@@ -1,0 +1,78 @@
+revoke_card:
+  name: Révoquer une carte
+  description: >-
+    Supprime une carte de la base par son UID. Immédiat, sans reboot.
+    (L'ajout d'une carte n'est pas possible par le réseau.)
+  fields:
+    uid:
+      name: UID
+      description: UID de la carte en hexadécimal (ex. 940cbbe1), tel qu'affiché par le capteur.
+      required: true
+      example: "940cbbe1"
+      selector:
+        text:
+    entry_id:
+      name: Doorbell
+      description: (Optionnel) entry_id si plusieurs doorbells sont configurées.
+      required: false
+      selector:
+        text:
+
+revoke_room:
+  name: Révoquer toutes les cartes d'un roomid
+  description: Supprime toutes les cartes rattachées à un roomid.
+  fields:
+    room:
+      name: Room ID
+      description: Identifiant de room (u64). Les cartes enrôlées par défaut sont en room 0.
+      required: true
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 4294967295
+          mode: box
+    entry_id:
+      name: Doorbell
+      required: false
+      selector:
+        text:
+
+set_pin:
+  name: Changer un PIN
+  description: >-
+    Change le code d'un utilisateur/room. Le PIN n'est jamais journalisé.
+    Le code 914900 est réservé et refusé par la doorbell.
+  fields:
+    room:
+      name: Room / User ID
+      description: Identifiant du user/room dont on change le code.
+      required: true
+      example: 3
+      selector:
+        number:
+          min: 0
+          max: 4294967295
+          mode: box
+    pin:
+      name: Nouveau PIN
+      description: Chiffres uniquement (4 pour un user, 6 pour admin/public).
+      required: true
+      example: "1234"
+      selector:
+        text:
+    entry_id:
+      name: Doorbell
+      required: false
+      selector:
+        text:
+
+refresh:
+  name: Rafraîchir la liste des cartes
+  description: Force une relecture immédiate de la base de cartes.
+  fields:
+    entry_id:
+      name: Doorbell
+      required: false
+      selector:
+        text:

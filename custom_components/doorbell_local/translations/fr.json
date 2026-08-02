@@ -1,0 +1,55 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Doorbell Local",
+        "description": "Connexion au MSG server de la doorbell (IP trouvée par UART : ifconfig eth0). Une réservation DHCP est recommandée.",
+        "data": {
+          "host": "Adresse IP",
+          "port": "Port TCP",
+          "scan_interval": "Intervalle de rafraîchissement (secondes)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de joindre la doorbell à cette adresse/ce port."
+    },
+    "abort": {
+      "already_configured": "Cette doorbell est déjà configurée."
+    }
+  },
+  "services": {
+    "revoke_card": {
+      "name": "Révoquer une carte",
+      "description": "Supprime une carte par son UID (immédiat, sans reboot).",
+      "fields": {
+        "uid": { "name": "UID", "description": "UID hexadécimal de la carte (ex. 940cbbe1)." },
+        "entry_id": { "name": "Doorbell", "description": "(Optionnel) si plusieurs doorbells." }
+      }
+    },
+    "revoke_room": {
+      "name": "Révoquer un roomid",
+      "description": "Supprime toutes les cartes d'un roomid.",
+      "fields": {
+        "room": { "name": "Room ID", "description": "Room (u64) ; cartes par défaut = room 0." },
+        "entry_id": { "name": "Doorbell", "description": "(Optionnel) si plusieurs doorbells." }
+      }
+    },
+    "set_pin": {
+      "name": "Changer un PIN",
+      "description": "Change le code d'un user/room (jamais journalisé ; 914900 refusé).",
+      "fields": {
+        "room": { "name": "Room / User ID", "description": "Identifiant du user/room." },
+        "pin": { "name": "Nouveau PIN", "description": "Chiffres uniquement (4 user, 6 admin)." },
+        "entry_id": { "name": "Doorbell", "description": "(Optionnel) si plusieurs doorbells." }
+      }
+    },
+    "refresh": {
+      "name": "Rafraîchir",
+      "description": "Relit immédiatement la base de cartes.",
+      "fields": {
+        "entry_id": { "name": "Doorbell", "description": "(Optionnel) si plusieurs doorbells." }
+      }
+    }
+  }
+}

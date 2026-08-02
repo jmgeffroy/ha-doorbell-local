@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# macOS
+.DS_Store
+
+# --- NE JAMAIS COMMITTER : firmware, dumps, secrets ---
+# (ce repo est PUBLIC : binaires sous copyright + données privées interdits)
+app0*
+*.dd
+*.img
+*.squashfs
+*.ext
+tuya_user.db*
+wifikey
+DoorPrivate*
+config.json
+captures/
+doorbell_dump/
+*_HANDOFF.txt
+secrets.yaml
