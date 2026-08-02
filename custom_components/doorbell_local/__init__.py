@@ -1,8 +1,13 @@
-"""Intégration doorbell_local : gestion réseau des cartes/PIN d'une doorbell Tuya/sun8i.
+"""Intégration doorbell_local (Tuya/sun8i RFID door controller).
 
-Ouverture de porte = relais Tuya via LocalTuya (séparé). Cette intégration couvre
-le MSG server (TCP 34952) : lister / révoquer des cartes, changer un PIN.
-L'ajout de carte n'existe PAS côté réseau (carte master physique requise).
+Deux canaux :
+- RÉSEAU (MSG server, TCP 34952) : lister / révoquer des cartes — instantané.
+- FICHIER (ICCardDB) : gérer les PIN. HA est la source de vérité du roster, génère
+  `/config/www/ICCardDB0.ext` (servi à /local/ICCardDB0.ext) ; l'application effective
+  sur la doorbell (wget + reboot) est faite par un pont UART (ESP / machine locale).
+
+Un PIN peut être rattaché à un badge (set_pin) OU indépendant (add_code = carte
+virtuelle : le clavier accepte le PIN sans badge physique).
 """
 from __future__ import annotations
 
@@ -17,9 +22,10 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from .const import (
+    ATTR_EMAIL,
     ATTR_ENTRY_ID,
+    ATTR_LABEL,
     ATTR_PIN,
-    ATTR_ROOM,
     ATTR_UID,
     CONF_HOST,
     CONF_PORT,
@@ -27,58 +33,85 @@ from .const import (
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    SERVICE_ADD_CODE,
+    SERVICE_IMPORT_CARDS,
     SERVICE_REFRESH,
+    SERVICE_REMOVE_ENTRY,
     SERVICE_REVOKE_CARD,
-    SERVICE_REVOKE_ROOM,
     SERVICE_SET_PIN,
+    SERVICE_STAGE,
 )
 from .coordinator import DoorbellCoordinator
 from .protocol import DoorbellClient, DoorbellError
+from .roster import Roster
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[Platform] = [Platform.SENSOR]
 
+_SERVICES = (
+    SERVICE_REVOKE_CARD,
+    SERVICE_REFRESH,
+    SERVICE_SET_PIN,
+    SERVICE_ADD_CODE,
+    SERVICE_REMOVE_ENTRY,
+    SERVICE_IMPORT_CARDS,
+    SERVICE_STAGE,
+)
+
 
 def _parse_uid(value) -> int:
-    """Accepte un UID en hex ('940cbbe1', '0x940cbbe1') ou en entier."""
+    """Accepte un UID hex ('940cbbe1', '0x940cbbe1') ou entier."""
     if isinstance(value, int):
         return value
     text = str(value).strip().lower()
     try:
-        return int(text, 16) if not text.startswith("0x") else int(text, 16)
+        return int(text, 16)
     except ValueError as err:
         raise HomeAssistantError(f"UID invalide : {value!r}") from err
 
 
+def _validate_pin(pin: str) -> str:
+    if not (pin.isdigit() and len(pin) == 4):
+        raise HomeAssistantError("PIN = exactement 4 chiffres")
+    return pin
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Configure une doorbell depuis une entrée de config."""
-    client = DoorbellClient(
-        entry.data[CONF_HOST], entry.data.get(CONF_PORT, DEFAULT_PORT)
-    )
+    """Configure une doorbell."""
+    client = DoorbellClient(entry.data[CONF_HOST], entry.data.get(CONF_PORT, DEFAULT_PORT))
     coordinator = DoorbellCoordinator(
         hass, client, entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     )
     await coordinator.async_config_entry_first_refresh()
 
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+    roster = Roster(hass, entry.entry_id)
+    await roster.load()
+    # amorçage : importe les cartes du device (UID+type) si le roster est vierge
+    if roster.import_cards(coordinator.data or []):
+        await roster.commit()
+
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
+        "coordinator": coordinator,
+        "roster": roster,
+    }
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     _async_register_services(hass)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Décharge une doorbell."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
         if not hass.data[DOMAIN]:
-            _async_unregister_services(hass)
+            for service in _SERVICES:
+                hass.services.async_remove(DOMAIN, service)
     return unload_ok
 
 
-def _resolve_coordinator(hass: HomeAssistant, call: ServiceCall) -> DoorbellCoordinator:
-    entries: dict[str, DoorbellCoordinator] = hass.data.get(DOMAIN, {})
+def _resolve(hass: HomeAssistant, call: ServiceCall) -> dict:
+    entries: dict[str, dict] = hass.data.get(DOMAIN, {})
     if not entries:
         raise HomeAssistantError("Aucune doorbell configurée")
     entry_id = call.data.get(ATTR_ENTRY_ID)
@@ -88,37 +121,62 @@ def _resolve_coordinator(hass: HomeAssistant, call: ServiceCall) -> DoorbellCoor
         return entries[entry_id]
     if len(entries) == 1:
         return next(iter(entries.values()))
-    raise HomeAssistantError(
-        "Plusieurs doorbells configurées : préciser 'entry_id'"
-    )
+    raise HomeAssistantError("Plusieurs doorbells : préciser 'entry_id'")
 
 
 def _async_register_services(hass: HomeAssistant) -> None:
-    if hass.services.has_service(DOMAIN, SERVICE_REVOKE_CARD):
+    if hass.services.has_service(DOMAIN, SERVICE_SET_PIN):
         return
 
-    async def _run(call: ServiceCall, fn, *args) -> None:
-        coordinator = _resolve_coordinator(hass, call)
+    # -- réseau (MSG server) -----------------------------------------------
+    async def handle_revoke_card(call: ServiceCall) -> None:
+        ctx = _resolve(hass, call)
+        coordinator = ctx["coordinator"]
+        uid = _parse_uid(call.data[ATTR_UID])
         try:
-            await hass.async_add_executor_job(fn(coordinator.client), *args)
+            await hass.async_add_executor_job(coordinator.client.revoke_card, uid)
         except DoorbellError as err:
             raise HomeAssistantError(str(err)) from err
         await coordinator.async_request_refresh()
 
-    async def handle_revoke_card(call: ServiceCall) -> None:
-        uid = _parse_uid(call.data[ATTR_UID])
-        await _run(call, lambda c: c.revoke_card, uid)
-
-    async def handle_revoke_room(call: ServiceCall) -> None:
-        await _run(call, lambda c: c.revoke_room, int(call.data[ATTR_ROOM]))
-
-    async def handle_set_pin(call: ServiceCall) -> None:
-        # NB : le PIN n'est jamais loggué.
-        await _run(call, lambda c: c.set_pin, int(call.data[ATTR_ROOM]), str(call.data[ATTR_PIN]))
-
     async def handle_refresh(call: ServiceCall) -> None:
-        coordinator = _resolve_coordinator(hass, call)
-        await coordinator.async_request_refresh()
+        await _resolve(hass, call)["coordinator"].async_request_refresh()
+
+    # -- roster / fichier ICCardDB -----------------------------------------
+    async def handle_set_pin(call: ServiceCall) -> None:
+        # le PIN n'est jamais loggué
+        ctx = _resolve(hass, call)
+        roster = ctx["roster"]
+        uid = _parse_uid(call.data[ATTR_UID])
+        roster.set_pin(
+            uid, _validate_pin(str(call.data[ATTR_PIN])), email=call.data.get(ATTR_EMAIL, "")
+        )
+        await roster.commit()
+
+    async def handle_add_code(call: ServiceCall) -> None:
+        ctx = _resolve(hass, call)
+        roster = ctx["roster"]
+        roster.add_code(
+            _validate_pin(str(call.data[ATTR_PIN])),
+            call.data.get(ATTR_LABEL, ""),
+            call.data.get(ATTR_EMAIL, ""),
+        )
+        await roster.commit()
+
+    async def handle_remove_entry(call: ServiceCall) -> None:
+        ctx = _resolve(hass, call)
+        roster = ctx["roster"]
+        if not roster.remove(_parse_uid(call.data[ATTR_UID])):
+            raise HomeAssistantError("UID absent du roster")
+        await roster.commit()
+
+    async def handle_import_cards(call: ServiceCall) -> None:
+        ctx = _resolve(hass, call)
+        ctx["roster"].import_cards(ctx["coordinator"].data or [])
+        await ctx["roster"].commit()
+
+    async def handle_stage(call: ServiceCall) -> None:
+        await _resolve(hass, call)["roster"].commit()
 
     entry_field = {vol.Optional(ATTR_ENTRY_ID): cv.string}
 
@@ -127,30 +185,37 @@ def _async_register_services(hass: HomeAssistant) -> None:
         schema=vol.Schema({vol.Required(ATTR_UID): cv.string, **entry_field}),
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_REVOKE_ROOM, handle_revoke_room,
-        schema=vol.Schema({vol.Required(ATTR_ROOM): vol.Coerce(int), **entry_field}),
+        DOMAIN, SERVICE_REFRESH, handle_refresh, schema=vol.Schema(entry_field),
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_PIN, handle_set_pin,
         schema=vol.Schema(
             {
-                vol.Required(ATTR_ROOM): vol.Coerce(int),
+                vol.Required(ATTR_UID): cv.string,
                 vol.Required(ATTR_PIN): cv.string,
+                vol.Optional(ATTR_EMAIL, default=""): cv.string,
                 **entry_field,
             }
         ),
     )
     hass.services.async_register(
-        DOMAIN, SERVICE_REFRESH, handle_refresh,
-        schema=vol.Schema(entry_field),
+        DOMAIN, SERVICE_ADD_CODE, handle_add_code,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_PIN): cv.string,
+                vol.Optional(ATTR_LABEL, default=""): cv.string,
+                vol.Optional(ATTR_EMAIL, default=""): cv.string,
+                **entry_field,
+            }
+        ),
     )
-
-
-def _async_unregister_services(hass: HomeAssistant) -> None:
-    for service in (
-        SERVICE_REVOKE_CARD,
-        SERVICE_REVOKE_ROOM,
-        SERVICE_SET_PIN,
-        SERVICE_REFRESH,
-    ):
-        hass.services.async_remove(DOMAIN, service)
+    hass.services.async_register(
+        DOMAIN, SERVICE_REMOVE_ENTRY, handle_remove_entry,
+        schema=vol.Schema({vol.Required(ATTR_UID): cv.string, **entry_field}),
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_IMPORT_CARDS, handle_import_cards, schema=vol.Schema(entry_field),
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_STAGE, handle_stage, schema=vol.Schema(entry_field),
+    )

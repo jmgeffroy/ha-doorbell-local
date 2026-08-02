@@ -1,0 +1,88 @@
+# =============================================================================
+# Package Home Assistant — gestion des PIN de la doorbell (helpers + scripts)
+# À déposer dans /config/packages/doorbell_pins.yaml
+# (active les packages : dans configuration.yaml -> homeassistant: packages: !include_dir_named packages)
+#
+# PRÉREQUIS pour l'envoi d'email : un service notify (SMTP) configuré.
+#   Remplace `notify.doorbell_email` (ci-dessous) par TON service, ex. notify.smtp.
+#   Doc SMTP : https://www.home-assistant.io/integrations/smtp/
+#
+# NB SÉCURITÉ : les traces de script HA peuvent contenir le PIN en clair (local,
+# admin uniquement). Le composant, lui, ne journalise jamais les PIN.
+# =============================================================================
+
+input_text:
+  doorbell_new_pin:
+    name: Nouveau PIN (4 chiffres)
+    max: 4
+    pattern: "[0-9]{4}"
+    icon: mdi:dialpad
+  doorbell_new_label:
+    name: Libellé
+    icon: mdi:label
+  doorbell_new_email:
+    name: Email (optionnel)
+    icon: mdi:email
+
+script:
+  # --- Créer un code PIN indépendant + email au porteur ----------------------
+  doorbell_create_code:
+    alias: "Doorbell — créer un code PIN"
+    icon: mdi:key-plus
+    mode: single
+    sequence:
+      - variables:
+          pin: "{{ states('input_text.doorbell_new_pin') }}"
+          label: "{{ states('input_text.doorbell_new_label') }}"
+          email: "{{ states('input_text.doorbell_new_email') }}"
+      - condition: template
+        value_template: "{{ pin | regex_match('^[0-9]{4}$') }}"
+        alias: "PIN = 4 chiffres"
+      - service: doorbell_local.add_code
+        data:
+          pin: "{{ pin }}"
+          label: "{{ label }}"
+          email: "{{ email }}"
+      # Envoi email si une adresse est fournie (remplace notify.doorbell_email par le tien)
+      - if:
+          - condition: template
+            value_template: "{{ email | length > 3 }}"
+        then:
+          - service: notify.doorbell_email
+            data:
+              target: "{{ email }}"
+              title: "Votre code d'accès"
+              message: >-
+                Bonjour,
+                Votre code d'accès à la porte est : {{ pin }}
+                Tapez-le suivi de # sur le clavier.
+      # Nettoie le formulaire
+      - service: input_text.set_value
+        target: { entity_id: input_text.doorbell_new_pin }
+        data: { value: "" }
+      - service: input_text.set_value
+        target: { entity_id: input_text.doorbell_new_label }
+        data: { value: "" }
+      - service: input_text.set_value
+        target: { entity_id: input_text.doorbell_new_email }
+        data: { value: "" }
+      # Rappelle d'appliquer sur la doorbell
+      - service: script.doorbell_apply
+
+  # --- Appliquer le fichier sur la doorbell ---------------------------------
+  # ÉTAPE 1 (maintenant) : rappel de la commande à taper via UART/CoolTerm.
+  # ÉTAPE 2 (quand l'ESP est là) : REMPLACER le corps par l'appel à l'ESP
+  #   (ex. esphome.<node>_apply_iccarddb) qui tape la ligne wget+reboot.
+  doorbell_apply:
+    alias: "Doorbell — appliquer (staging -> device)"
+    icon: mdi:upload
+    sequence:
+      - service: persistent_notification.create
+        data:
+          notification_id: doorbell_apply
+          title: "Doorbell — appliquer le fichier"
+          message: >-
+            Fichier régénéré : http://HA_IP:8123/local/ICCardDB0.ext
+
+            Tape ceci sur la doorbell (UART) — jusqu'à ce que l'ESP le fasse :
+            `wget -O /data/ICCardDB0.ext http://HA_IP:8123/local/ICCardDB0.ext ; rm -f /data/ICCardDB1.ext ; sync ; reboot`

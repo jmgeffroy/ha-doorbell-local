@@ -1,15 +1,16 @@
-"""Capteur : nombre de cartes enrôlées (+ liste en attributs)."""
+"""Capteurs : cartes enrôlées sur le device + roster de PIN détenu par HA."""
 from __future__ import annotations
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_HOST, DOMAIN
 from .coordinator import DoorbellCoordinator
+from .roster import Roster
 
 
 async def async_setup_entry(
@@ -17,12 +18,26 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator: DoorbellCoordinator = hass.data[DOMAIN][entry.entry_id]
-    async_add_entities([DoorbellCardsSensor(coordinator, entry)])
+    ctx = hass.data[DOMAIN][entry.entry_id]
+    async_add_entities(
+        [
+            DoorbellCardsSensor(ctx["coordinator"], entry),
+            DoorbellRosterSensor(ctx["roster"], entry),
+        ]
+    )
+
+
+def _device_info(host: str) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, host)},
+        name=f"Doorbell {host}",
+        manufacturer="Tuya / sun8i (X5_83225)",
+        model="RFID door controller",
+    )
 
 
 class DoorbellCardsSensor(CoordinatorEntity[DoorbellCoordinator], SensorEntity):
-    """État = nombre de cartes ; attribut `cards` = liste {uid, type}."""
+    """État = nombre de cartes enrôlées sur le DEVICE ; attribut `cards`."""
 
     _attr_has_entity_name = True
     _attr_name = "Enrolled cards"
@@ -31,15 +46,8 @@ class DoorbellCardsSensor(CoordinatorEntity[DoorbellCoordinator], SensorEntity):
 
     def __init__(self, coordinator: DoorbellCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
-        host = entry.data[CONF_HOST]
         self._attr_unique_id = f"{entry.entry_id}_cards"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, host)},
-            name=f"Doorbell {host}",
-            manufacturer="Tuya / sun8i (X5_83225)",
-            model="RFID door controller",
-            configuration_url=None,
-        )
+        self._attr_device_info = _device_info(entry.data[CONF_HOST])
 
     @property
     def native_value(self) -> int:
@@ -52,4 +60,41 @@ class DoorbellCardsSensor(CoordinatorEntity[DoorbellCoordinator], SensorEntity):
             "cards": cards,
             "managers": [c["uid"] for c in cards if c["type"] == "manager"],
             "users": [c["uid"] for c in cards if c["type"] == "user"],
+        }
+
+
+class DoorbellRosterSensor(SensorEntity):
+    """État = nombre de PIN posés dans le roster HA. N'expose JAMAIS les PIN."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Staged PIN codes"
+    _attr_icon = "mdi:form-textbox-password"
+    _attr_should_poll = False
+
+    def __init__(self, roster: Roster, entry: ConfigEntry) -> None:
+        self._roster = roster
+        self._attr_unique_id = f"{entry.entry_id}_roster"
+        self._attr_device_info = _device_info(entry.data[CONF_HOST])
+
+    @callback
+    def _entry_view(self, e: dict) -> dict:
+        return {
+            "uid": f"{e['uid']:08x}",
+            "type": e.get("type", "user"),
+            "label": e.get("label", ""),
+            "email": e.get("email", ""),
+            "virtual": e.get("virtual", False),
+            "pin_set": bool(e.get("pin")),  # jamais la valeur du PIN
+        }
+
+    @property
+    def native_value(self) -> int:
+        return sum(1 for e in self._roster.entries if e.get("pin"))
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        return {
+            "entries": [self._entry_view(e) for e in self._roster.entries],
+            "staged_file": f"/local/ICCardDB0.ext",
+            "seq": self._roster.seq,
         }

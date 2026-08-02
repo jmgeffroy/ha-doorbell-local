@@ -17,19 +17,33 @@ the factory, so this works on an unmodified device.
 
 ## Features
 
-- **Sensor** — number of enrolled cards, with the full list (UID + manager/user) as attributes.
-- **Service `revoke_card`** — remove a card by its UID. Takes effect immediately, no reboot.
-- **Service `revoke_room`** — remove every card bound to a room id.
-- **Service `set_pin`** — change a user's PIN code.
+**Network (MSG server, instant, no reboot):**
+- **Sensor** `enrolled cards` — count + full list (UID + manager/user) as attributes.
+- **Service `revoke_card`** — remove a card by its UID. Immediate.
 - **Service `refresh`** — re-read the card database on demand.
 
-### What this integration cannot do
+**PIN management (v2 — via the ICCardDB file + a UART bridge):**
+- **Sensor** `staged PIN codes` — the HA-held roster (never exposes the PIN values).
+- **Service `set_pin`** — set a 4-digit PIN on a badge.
+- **Service `add_code`** — create a **standalone PIN** (a "virtual card": opens with no
+  physical badge), with an optional label and owner email.
+- **Services `remove_entry` / `import_cards` / `stage`** — manage the roster / regenerate the file.
 
-**Adding a card is not possible over the network.** The firmware exposes no "add card"
-command — enrolment only happens through the RFID reader itself (present a *master* card,
-then the new card). This is a firmware design decision, confirmed by disassembly, not a
-limitation of this integration. Use the physical master-card procedure to enrol, then manage
-(list / revoke / rotate PINs) from Home Assistant.
+HA is the source of truth for PINs (the device does not expose them). These services
+(re)generate `/config/www/ICCardDB0.ext`, served at `/local/ICCardDB0.ext`. A small
+**UART bridge** at the device (an ESP32, or any always-on machine wired to the doorbell's
+serial console — which is an unauthenticated root shell) then applies it with one line:
+`wget -O /data/ICCardDB0.ext http://<ha>:8123/local/ICCardDB0.ext ; rm -f /data/ICCardDB1.ext ; sync ; reboot`.
+Applying a PIN change requires that bridge + a reboot (~1 min); listing/revoking do not.
+
+A ready-made dashboard + scripts (create a code, email it to its owner) is in
+[`dashboard/`](dashboard/).
+
+### On adding cards
+
+There is **no network "add card" command** — over the network you can only list and revoke.
+But with the UART bridge above you *can* add cards (and set PINs) by regenerating the ICCardDB
+file. Without the bridge, enrol via the physical master-card procedure, then manage from HA.
 
 ---
 

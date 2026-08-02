@@ -1,78 +1,112 @@
-revoke_card:
-  name: Révoquer une carte
+set_pin:
+  name: Définir le PIN d'un badge
   description: >-
-    Supprime une carte de la base par son UID. Immédiat, sans reboot.
-    (L'ajout d'une carte n'est pas possible par le réseau.)
+    Attribue/change le PIN (4 chiffres) d'un badge existant dans le roster HA, puis
+    régénère /config/www/ICCardDB0.ext. À APPLIQUER ensuite sur la doorbell (pont UART).
+  fields:
+    uid:
+      name: UID du badge
+      description: UID hexadécimal (ex. 940cbbe1), tel qu'affiché par le capteur cartes.
+      required: true
+      example: "940cbbe1"
+      selector: { text: }
+    pin:
+      name: PIN
+      description: 4 chiffres. Jamais journalisé.
+      required: true
+      example: "1234"
+      selector: { text: }
+    email:
+      name: Email (optionnel)
+      description: Email du porteur, mémorisé dans le roster (pour notification/traçabilité).
+      required: false
+      selector: { text: { type: email } }
+    entry_id:
+      name: Doorbell
+      required: false
+      selector: { text: }
+
+add_code:
+  name: Ajouter un code PIN indépendant
+  description: >-
+    Crée un PIN autonome (carte virtuelle, sans badge physique) : le clavier l'accepte.
+    Régénère le fichier. À APPLIQUER ensuite (pont UART).
+  fields:
+    pin:
+      name: PIN
+      description: 4 chiffres. Jamais journalisé.
+      required: true
+      example: "4826"
+      selector: { text: }
+    label:
+      name: Libellé
+      description: Nom du code (ex. « Femme de ménage », « Locataire »).
+      required: false
+      example: "Locataire"
+      selector: { text: }
+    email:
+      name: Email (optionnel)
+      description: Email à qui envoyer le code (l'envoi se fait par ton automatisation notify).
+      required: false
+      selector: { text: { type: email } }
+    entry_id:
+      name: Doorbell
+      required: false
+      selector: { text: }
+
+remove_entry:
+  name: Supprimer un badge/code du roster
+  description: Retire l'entrée du roster HA et régénère le fichier.
   fields:
     uid:
       name: UID
-      description: UID de la carte en hexadécimal (ex. 940cbbe1), tel qu'affiché par le capteur.
+      description: UID hexadécimal (badge ou carte virtuelle).
+      required: true
+      example: "f0000000"
+      selector: { text: }
+    entry_id:
+      name: Doorbell
+      required: false
+      selector: { text: }
+
+import_cards:
+  name: Importer les cartes du device
+  description: Ajoute au roster les cartes actuellement enrôlées sur la doorbell (UID+type), sans écraser les PIN déjà connus.
+  fields:
+    entry_id:
+      name: Doorbell
+      required: false
+      selector: { text: }
+
+stage:
+  name: Régénérer le fichier
+  description: Reconstruit /config/www/ICCardDB0.ext depuis le roster (sans autre changement).
+  fields:
+    entry_id:
+      name: Doorbell
+      required: false
+      selector: { text: }
+
+revoke_card:
+  name: Révoquer une carte (réseau, instantané)
+  description: Supprime une carte de la doorbell par son UID, via le MSG server. Immédiat, sans reboot.
+  fields:
+    uid:
+      name: UID
+      description: UID hexadécimal (ex. 940cbbe1).
       required: true
       example: "940cbbe1"
-      selector:
-        text:
-    entry_id:
-      name: Doorbell
-      description: (Optionnel) entry_id si plusieurs doorbells sont configurées.
-      required: false
-      selector:
-        text:
-
-revoke_room:
-  name: Révoquer toutes les cartes d'un roomid
-  description: Supprime toutes les cartes rattachées à un roomid.
-  fields:
-    room:
-      name: Room ID
-      description: Identifiant de room (u64). Les cartes enrôlées par défaut sont en room 0.
-      required: true
-      example: 0
-      selector:
-        number:
-          min: 0
-          max: 4294967295
-          mode: box
+      selector: { text: }
     entry_id:
       name: Doorbell
       required: false
-      selector:
-        text:
-
-set_pin:
-  name: Changer un PIN
-  description: >-
-    Change le code d'un utilisateur/room. Le PIN n'est jamais journalisé.
-    Le code 914900 est réservé et refusé par la doorbell.
-  fields:
-    room:
-      name: Room / User ID
-      description: Identifiant du user/room dont on change le code.
-      required: true
-      example: 3
-      selector:
-        number:
-          min: 0
-          max: 4294967295
-          mode: box
-    pin:
-      name: Nouveau PIN
-      description: Chiffres uniquement (4 pour un user, 6 pour admin/public).
-      required: true
-      example: "1234"
-      selector:
-        text:
-    entry_id:
-      name: Doorbell
-      required: false
-      selector:
-        text:
+      selector: { text: }
 
 refresh:
   name: Rafraîchir la liste des cartes
-  description: Force une relecture immédiate de la base de cartes.
+  description: Relit la base de cartes du device (réseau).
   fields:
     entry_id:
       name: Doorbell
       required: false
-      selector:
-        text:
+      selector: { text: }

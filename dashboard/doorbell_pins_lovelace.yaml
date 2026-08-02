@@ -1,0 +1,61 @@
+# =============================================================================
+# Vue Lovelace — Gestion des codes PIN de la doorbell
+# À coller dans un tableau de bord (mode YAML) ou une nouvelle vue.
+# Adapte les entity_id `sensor.doorbell_192_168_1_50_*` à ton IP réelle.
+# Pour un rendu plus léché : cartes Mushroom (HACS) — optionnel.
+# =============================================================================
+title: Accès
+path: acces
+icon: mdi:door
+type: sections
+sections:
+  - type: grid
+    cards:
+      - type: heading
+        heading: Créer un code PIN
+        icon: mdi:key-plus
+      - type: entities
+        entities:
+          - entity: input_text.doorbell_new_pin
+          - entity: input_text.doorbell_new_label
+          - entity: input_text.doorbell_new_email
+      - type: button
+        name: Créer le code (+ email)
+        icon: mdi:check
+        tap_action:
+          action: perform-action
+          perform_action: script.doorbell_create_code
+        show_state: false
+
+  - type: grid
+    cards:
+      - type: heading
+        heading: Codes actifs
+        icon: mdi:format-list-bulleted
+      - type: markdown
+        content: >
+          | Libellé | UID | Type | PIN | Email |
+          |---|---|---|:---:|---|
+          {% for e in state_attr('sensor.doorbell_192_168_1_50_staged_pin_codes','entries') or [] %}
+          | {{ e.label or '—' }} | `{{ e.uid }}` | {{ 'virtuel' if e.virtual else e.type }} | {{ '✅' if e.pin_set else '—' }} | {{ e.email or '—' }} |
+          {% endfor %}
+      - type: button
+        name: Appliquer sur la porte
+        icon: mdi:upload
+        tap_action:
+          action: perform-action
+          perform_action: script.doorbell_apply
+
+  - type: grid
+    cards:
+      - type: heading
+        heading: Badges (device)
+        icon: mdi:card-account-details
+      - type: entity
+        entity: sensor.doorbell_192_168_1_50_enrolled_cards
+        name: Badges enrôlés
+      - type: markdown
+        content: >
+          {% for c in state_attr('sensor.doorbell_192_168_1_50_enrolled_cards','cards') or [] %}
+          - `{{ c.uid }}` — {{ c.type }}
+          {% endfor %}
