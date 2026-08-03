@@ -12,8 +12,10 @@ import logging
 import os
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
+from .const import DOMAIN
 from .iccarddb import build_iccarddb
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,11 +26,17 @@ VIRTUAL_UID_BASE = 0xF0000000  # plage des UID « cartes virtuelles » (PIN auto
 SEQ_START = 1000  # seq de départ (dépasse largement les seq réels du device)
 
 
+def roster_signal(entry_id: str) -> str:
+    """Nom du signal dispatcher émis quand le roster change."""
+    return f"{DOMAIN}_roster_updated_{entry_id}"
+
+
 class Roster:
     """Roster persistant + génération du fichier ICCardDB dans /config/www/."""
 
     def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
         self._hass = hass
+        self._entry_id = entry_id
         self._store = Store(hass, STORE_VERSION, f"doorbell_local_{entry_id}_roster")
         self.entries: list[dict] = []
         self.seq: int = SEQ_START
@@ -126,7 +134,8 @@ class Roster:
         return path
 
     async def commit(self) -> str:
-        """Écrit le fichier (executor) + persiste le roster. Retourne le chemin."""
+        """Écrit le fichier (executor) + persiste le roster + notifie les capteurs."""
         path = await self._hass.async_add_executor_job(self._write_file)
         await self._save()
+        async_dispatcher_send(self._hass, roster_signal(self._entry_id))
         return path

@@ -33,12 +33,12 @@ sections:
         heading: Codes actifs
         icon: mdi:format-list-bulleted
       - type: markdown
-        content: >
-          | Libellé | UID | Type | PIN | Email |
-          |---|---|---|:---:|---|
+        content: |
+          {% set ns = namespace(t='| Libellé | UID | Type | PIN | Email |\n|---|---|---|:---:|---|\n') %}
           {% for e in state_attr('sensor.doorbell_192_168_1_50_staged_pin_codes','entries') or [] %}
-          | {{ e.label or '—' }} | `{{ e.uid }}` | {{ 'virtuel' if e.virtual else e.type }} | {{ '✅' if e.pin_set else '—' }} | {{ e.email or '—' }} |
+          {% set ns.t = ns.t + '| ' + (e.label or '—') + ' | `' + e.uid + '` | ' + ('virtuel' if e.virtual else e.type) + ' | ' + ('✅' if e.pin_set else '—') + ' | ' + (e.email or '—') + ' |\n' %}
           {% endfor %}
+          {{ ns.t }}
       - type: button
         name: Appliquer sur la porte
         icon: mdi:upload

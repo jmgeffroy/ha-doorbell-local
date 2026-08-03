@@ -5,12 +5,13 @@ from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_HOST, DOMAIN
 from .coordinator import DoorbellCoordinator
-from .roster import Roster
+from .roster import Roster, roster_signal
 
 
 async def async_setup_entry(
@@ -73,8 +74,19 @@ class DoorbellRosterSensor(SensorEntity):
 
     def __init__(self, roster: Roster, entry: ConfigEntry) -> None:
         self._roster = roster
+        self._entry_id = entry.entry_id
         self._attr_unique_id = f"{entry.entry_id}_roster"
         self._attr_device_info = _device_info(entry.data[CONF_HOST])
+
+    async def async_added_to_hass(self) -> None:
+        """Se rafraîchit dès que le roster change (signal émis par commit())."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                roster_signal(self._entry_id),
+                self.async_write_ha_state,
+            )
+        )
 
     @callback
     def _entry_view(self, e: dict) -> dict:
@@ -95,6 +107,6 @@ class DoorbellRosterSensor(SensorEntity):
     def extra_state_attributes(self) -> dict:
         return {
             "entries": [self._entry_view(e) for e in self._roster.entries],
-            "staged_file": f"/local/ICCardDB0.ext",
+            "staged_file": "/local/ICCardDB0.ext",
             "seq": self._roster.seq,
         }
