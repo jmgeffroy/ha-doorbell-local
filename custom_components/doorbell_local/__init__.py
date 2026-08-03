@@ -86,7 +86,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = DoorbellCoordinator(
         hass, client, entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     )
-    await coordinator.async_config_entry_first_refresh()
+    # NE PAS utiliser async_config_entry_first_refresh() : il lève ConfigEntryNotReady
+    # si la doorbell ne répond pas, et TOUTE l'intégration reste déchargée (services
+    # + roster + PIN inclus). Or la doorbell REBOOTE à chaque « Appliquer » et la
+    # gestion des PIN (fichier) n'a pas besoin du réseau. async_refresh() n'échoue
+    # pas : le capteur « badges enrôlés » passera juste en indisponible si le device
+    # est absent, puis récupérera au prochain poll.
+    await coordinator.async_refresh()
 
     roster = Roster(hass, entry.entry_id)
     await roster.load()
