@@ -45,7 +45,9 @@ class _DeleteButton(ButtonEntity):
     def name(self) -> str:
         entry = self._roster._find(self._uid)
         label = (entry.get("label") if entry else "") or f"{self._uid:08x}"
-        return f"Supprimer {label}"
+        # « <libellé> — Supprimer » pour se ranger avec les champs du même code
+        # quand auto-entities/la page appareil trie par nom.
+        return f"{label} — Supprimer"
 
     async def async_press(self) -> None:
         if self._roster.remove(self._uid):

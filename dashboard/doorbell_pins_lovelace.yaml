@@ -64,6 +64,9 @@ sections:
   # --- Modifier / Supprimer (entités par-code de la 2.1) ---------------------
   # Nécessite la carte `auto-entities` (HACS). Sinon, retire cette section et
   # édite les codes depuis Paramètres → Appareils → « Doorbell … ».
+  # Chaque code expose PIN / Téléphone / Email éditables + un bouton Supprimer.
+  # Le tri par nom regroupe les 4 contrôles d'un même code (libellés uniques
+  # conseillés). L'édition régénère le fichier → cliquer « Appliquer » ensuite.
   - type: grid
     cards:
       - type: heading
@@ -73,18 +76,14 @@ sections:
         card:
           type: entities
           state_color: true
-        filter:
-          include:
-            - entity_id: "text.*_pin"
-              integration: doorbell_local
-            - entity_id: "text.*_phone"
-              integration: doorbell_local
-            - entity_id: "text.*_email"
-              integration: doorbell_local
-            - entity_id: "button.*_supprimer*"
-              integration: doorbell_local
         sort:
           method: friendly_name
+        filter:
+          include:
+            - integration: doorbell_local
+              domain: text
+            - integration: doorbell_local
+              domain: button
 
   - type: grid
     cards:
