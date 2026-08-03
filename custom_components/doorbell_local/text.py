@@ -20,8 +20,11 @@ from .entities import device_info, setup_dynamic_entities
 from .roster import Roster, roster_signal
 
 # champ -> (suffixe nom, icône, mode, pattern, min, max)
+# NB : le motif du PIN accepte le VIDE ([0-9]{0,4}) — sinon HA marque l'entité
+# `unavailable` pour tout code/badge sans PIN (la valeur "" ne matcherait pas
+# {4}). La contrainte stricte « 4 chiffres » est appliquée dans async_set_value.
 _FIELDS = {
-    "pin": ("PIN", "mdi:dialpad", TextMode.TEXT, r"[0-9]{4}", 0, 4),
+    "pin": ("PIN", "mdi:dialpad", TextMode.TEXT, r"[0-9]{0,4}", 0, 4),
     "phone": ("Téléphone", "mdi:phone", TextMode.TEXT, None, 0, 24),
     "email": ("Email", "mdi:email", TextMode.TEXT, None, 0, 100),
 }
