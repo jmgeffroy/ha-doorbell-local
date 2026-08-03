@@ -21,6 +21,11 @@ set_pin:
       description: Email du porteur, mémorisé dans le roster (pour notification/traçabilité).
       required: false
       selector: { text: { type: email } }
+    phone:
+      name: Téléphone (optionnel)
+      description: Numéro du porteur (format international, ex. +33612345678), pour l'envoi WhatsApp.
+      required: false
+      selector: { text: { type: tel } }
     entry_id:
       name: Doorbell
       required: false
@@ -49,6 +54,40 @@ add_code:
       description: Email à qui envoyer le code (l'envoi se fait par ton automatisation notify).
       required: false
       selector: { text: { type: email } }
+    phone:
+      name: Téléphone (optionnel)
+      description: Numéro du porteur (format international, ex. +33612345678), pour l'envoi WhatsApp.
+      required: false
+      selector: { text: { type: tel } }
+    entry_id:
+      name: Doorbell
+      required: false
+      selector: { text: }
+
+update_contact:
+  name: Modifier le contact d'une entrée
+  description: >-
+    Change le libellé, l'email et/ou le téléphone d'une entrée du roster (sans toucher au PIN),
+    puis régénère le fichier. Utilisé par les champs éditables du tableau.
+  fields:
+    uid:
+      name: UID
+      description: UID hexadécimal (badge ou carte virtuelle).
+      required: true
+      example: "f0000000"
+      selector: { text: }
+    label:
+      name: Libellé
+      required: false
+      selector: { text: }
+    email:
+      name: Email
+      required: false
+      selector: { text: { type: email } }
+    phone:
+      name: Téléphone
+      required: false
+      selector: { text: { type: tel } }
     entry_id:
       name: Doorbell
       required: false

@@ -23,6 +23,9 @@ input_text:
   doorbell_new_email:
     name: Email (optionnel)
     icon: mdi:email
+  doorbell_new_phone:
+    name: Téléphone (optionnel)
+    icon: mdi:phone
 
 script:
   # --- Créer un code PIN indépendant + email au porteur ----------------------
@@ -35,6 +38,7 @@ script:
           pin: "{{ states('input_text.doorbell_new_pin') }}"
           label: "{{ states('input_text.doorbell_new_label') }}"
           email: "{{ states('input_text.doorbell_new_email') }}"
+          phone: "{{ states('input_text.doorbell_new_phone') }}"
       - condition: template
         value_template: "{{ pin | regex_match('^[0-9]{4}$') }}"
         alias: "PIN = 4 chiffres"
@@ -43,6 +47,7 @@ script:
           pin: "{{ pin }}"
           label: "{{ label }}"
           email: "{{ email }}"
+          phone: "{{ phone }}"
       # Envoi email si une adresse est fournie (remplace notify.doorbell_email par le tien)
       - if:
           - condition: template
@@ -65,6 +70,9 @@ script:
         data: { value: "" }
       - service: input_text.set_value
         target: { entity_id: input_text.doorbell_new_email }
+        data: { value: "" }
+      - service: input_text.set_value
+        target: { entity_id: input_text.doorbell_new_phone }
         data: { value: "" }
       # Rappelle d'appliquer sur la doorbell
       - service: script.doorbell_apply

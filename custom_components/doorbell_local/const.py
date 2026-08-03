@@ -18,6 +18,7 @@ SERVICE_REFRESH = "refresh"
 SERVICE_SET_PIN = "set_pin"           # PIN d'un badge (ou crée l'entrée)
 SERVICE_ADD_CODE = "add_code"         # PIN indépendant (carte virtuelle)
 SERVICE_REMOVE_ENTRY = "remove_entry"
+SERVICE_UPDATE_CONTACT = "update_contact"  # change label/email/phone d'une entrée
 SERVICE_IMPORT_CARDS = "import_cards"  # amorcer le roster depuis le device
 SERVICE_STAGE = "stage"               # régénérer le fichier sans changement
 
@@ -26,3 +27,4 @@ ATTR_UID = "uid"
 ATTR_PIN = "pin"
 ATTR_LABEL = "label"
 ATTR_EMAIL = "email"
+ATTR_PHONE = "phone"

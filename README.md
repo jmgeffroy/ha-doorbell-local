@@ -23,11 +23,22 @@ the factory, so this works on an unmodified device.
 - **Service `refresh`** — re-read the card database on demand.
 
 **PIN management (v2 — via the ICCardDB file + a UART bridge):**
-- **Sensor** `staged PIN codes` — the HA-held roster (never exposes the PIN values).
+- **Sensor** `staged PIN codes` — the HA-held roster.
 - **Service `set_pin`** — set a 4-digit PIN on a badge.
 - **Service `add_code`** — create a **standalone PIN** (a "virtual card": opens with no
-  physical badge), with an optional label and owner email.
+  physical badge), with an optional label, owner **email and phone** (both optional).
+- **Service `update_contact`** — change an entry's label / email / phone (leaves the PIN).
 - **Services `remove_entry` / `import_cards` / `stage`** — manage the roster / regenerate the file.
+
+**Per-code entities (v2.1):** every code exposes editable `text` entities (PIN, phone,
+email) and a `button` to delete it. They appear/disappear as codes are created/removed, so
+you can manage everything inline from a dashboard (see [`dashboard/`](dashboard/)) or from
+the device page. A phone number lets the dashboard build a one-tap **WhatsApp** link
+(`wa.me`) to send the owner their code.
+
+> ⚠️ Since v2.1 the roster sensor and the PIN text entity expose the **PIN value** (needed
+> to edit/send it from the table). Home Assistant is local and admin-only — an accepted
+> trade-off; the component still never writes PINs to the log.
 
 HA is the source of truth for PINs (the device does not expose them). These services
 (re)generate `/config/www/ICCardDB0.ext`, served at `/local/ICCardDB0.ext`. A small
@@ -81,6 +92,9 @@ before creating the entry.
 | Entity | Description |
 |---|---|
 | `sensor.doorbell_<host>_enrolled_cards` | State = card count. Attributes: `cards` (list of `{uid, type}`), `managers`, `users`. |
+| `sensor.doorbell_<host>_staged_pin_codes` | State = number of staged PINs. Attribute `entries` (list of `{uid, label, type, email, phone, pin, virtual}`). |
+| `text.doorbell_<host>_<label>_pin` / `_phone` / `_email` | One per code — editable inline (v2.1). Setting the PIN regenerates the file. |
+| `button.doorbell_<host>_supprimer_<label>` | One per code — deletes it from the roster (v2.1). |
 
 ## Services
 

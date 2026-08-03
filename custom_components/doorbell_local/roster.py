@@ -54,12 +54,21 @@ class Roster:
     def _find(self, uid: int) -> dict | None:
         return next((e for e in self.entries if e["uid"] == uid), None)
 
-    def set_pin(self, uid: int, pin: str, type_: str = "user", email: str = "") -> None:
+    def set_pin(
+        self,
+        uid: int,
+        pin: str,
+        type_: str = "user",
+        email: str = "",
+        phone: str = "",
+    ) -> None:
         entry = self._find(uid)
         if entry:
             entry["pin"] = pin
             if email:
                 entry["email"] = email
+            if phone:
+                entry["phone"] = phone
         else:
             self.entries.append(
                 {
@@ -68,11 +77,12 @@ class Roster:
                     "pin": pin,
                     "label": "",
                     "email": email,
+                    "phone": phone,
                     "virtual": False,
                 }
             )
 
-    def add_code(self, pin: str, label: str, email: str = "") -> int:
+    def add_code(self, pin: str, label: str, email: str = "", phone: str = "") -> int:
         """Ajoute un PIN indépendant (carte virtuelle, UID auto). Retourne l'UID."""
         used = {e["uid"] for e in self.entries}
         uid = VIRTUAL_UID_BASE
@@ -85,10 +95,21 @@ class Roster:
                 "pin": pin,
                 "label": label,
                 "email": email,
+                "phone": phone,
                 "virtual": True,
             }
         )
         return uid
+
+    def update(self, uid: int, fields: dict) -> bool:
+        """Met à jour un ou plusieurs champs (pin/label/email/phone) d'une entrée."""
+        entry = self._find(uid)
+        if not entry:
+            return False
+        for key in ("pin", "label", "email", "phone"):
+            if key in fields:
+                entry[key] = fields[key]
+        return True
 
     def remove(self, uid: int) -> bool:
         before = len(self.entries)
@@ -107,6 +128,8 @@ class Roster:
                         "type": c.get("type", "user"),
                         "pin": "",
                         "label": "",
+                        "email": "",
+                        "phone": "",
                         "virtual": False,
                     }
                 )

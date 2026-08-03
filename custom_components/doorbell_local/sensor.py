@@ -65,7 +65,11 @@ class DoorbellCardsSensor(CoordinatorEntity[DoorbellCoordinator], SensorEntity):
 
 
 class DoorbellRosterSensor(SensorEntity):
-    """État = nombre de PIN posés dans le roster HA. N'expose JAMAIS les PIN."""
+    """État = nombre de PIN posés dans le roster HA.
+
+    Depuis la 2.1, l'attribut `entries` expose la VALEUR du PIN (pour l'éditer/
+    l'envoyer depuis le tableau). HA est local et réservé à l'admin — assumé.
+    """
 
     _attr_has_entity_name = True
     _attr_name = "Staged PIN codes"
@@ -95,8 +99,11 @@ class DoorbellRosterSensor(SensorEntity):
             "type": e.get("type", "user"),
             "label": e.get("label", ""),
             "email": e.get("email", ""),
+            "phone": e.get("phone", ""),
             "virtual": e.get("virtual", False),
-            "pin_set": bool(e.get("pin")),  # jamais la valeur du PIN
+            "pin_set": bool(e.get("pin")),
+            # le PIN est exposé pour le tableau/lien WhatsApp (HA local, admin only)
+            "pin": e.get("pin", ""),
         }
 
     @property

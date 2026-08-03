@@ -25,6 +25,7 @@ from .const import (
     ATTR_EMAIL,
     ATTR_ENTRY_ID,
     ATTR_LABEL,
+    ATTR_PHONE,
     ATTR_PIN,
     ATTR_UID,
     CONF_HOST,
@@ -40,6 +41,7 @@ from .const import (
     SERVICE_REVOKE_CARD,
     SERVICE_SET_PIN,
     SERVICE_STAGE,
+    SERVICE_UPDATE_CONTACT,
 )
 from .coordinator import DoorbellCoordinator
 from .protocol import DoorbellClient, DoorbellError
@@ -47,7 +49,7 @@ from .roster import Roster
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.TEXT, Platform.BUTTON]
 
 _SERVICES = (
     SERVICE_REVOKE_CARD,
@@ -55,6 +57,7 @@ _SERVICES = (
     SERVICE_SET_PIN,
     SERVICE_ADD_CODE,
     SERVICE_REMOVE_ENTRY,
+    SERVICE_UPDATE_CONTACT,
     SERVICE_IMPORT_CARDS,
     SERVICE_STAGE,
 )
@@ -149,7 +152,10 @@ def _async_register_services(hass: HomeAssistant) -> None:
         roster = ctx["roster"]
         uid = _parse_uid(call.data[ATTR_UID])
         roster.set_pin(
-            uid, _validate_pin(str(call.data[ATTR_PIN])), email=call.data.get(ATTR_EMAIL, "")
+            uid,
+            _validate_pin(str(call.data[ATTR_PIN])),
+            email=call.data.get(ATTR_EMAIL, ""),
+            phone=call.data.get(ATTR_PHONE, ""),
         )
         await roster.commit()
 
@@ -160,7 +166,21 @@ def _async_register_services(hass: HomeAssistant) -> None:
             _validate_pin(str(call.data[ATTR_PIN])),
             call.data.get(ATTR_LABEL, ""),
             call.data.get(ATTR_EMAIL, ""),
+            call.data.get(ATTR_PHONE, ""),
         )
+        await roster.commit()
+
+    async def handle_update_contact(call: ServiceCall) -> None:
+        ctx = _resolve(hass, call)
+        roster = ctx["roster"]
+        uid = _parse_uid(call.data[ATTR_UID])
+        fields = {
+            key: str(call.data[attr])
+            for key, attr in (("label", ATTR_LABEL), ("email", ATTR_EMAIL), ("phone", ATTR_PHONE))
+            if attr in call.data
+        }
+        if not roster.update(uid, fields):
+            raise HomeAssistantError("UID absent du roster")
         await roster.commit()
 
     async def handle_remove_entry(call: ServiceCall) -> None:
@@ -194,6 +214,7 @@ def _async_register_services(hass: HomeAssistant) -> None:
                 vol.Required(ATTR_UID): cv.string,
                 vol.Required(ATTR_PIN): cv.string,
                 vol.Optional(ATTR_EMAIL, default=""): cv.string,
+                vol.Optional(ATTR_PHONE, default=""): cv.string,
                 **entry_field,
             }
         ),
@@ -205,6 +226,19 @@ def _async_register_services(hass: HomeAssistant) -> None:
                 vol.Required(ATTR_PIN): cv.string,
                 vol.Optional(ATTR_LABEL, default=""): cv.string,
                 vol.Optional(ATTR_EMAIL, default=""): cv.string,
+                vol.Optional(ATTR_PHONE, default=""): cv.string,
+                **entry_field,
+            }
+        ),
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_UPDATE_CONTACT, handle_update_contact,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_UID): cv.string,
+                vol.Optional(ATTR_LABEL): cv.string,
+                vol.Optional(ATTR_EMAIL): cv.string,
+                vol.Optional(ATTR_PHONE): cv.string,
                 **entry_field,
             }
         ),

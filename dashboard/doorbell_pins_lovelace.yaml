@@ -1,8 +1,15 @@
 # =============================================================================
-# Vue Lovelace — Gestion des codes PIN de la doorbell
+# Vue Lovelace — Gestion des codes PIN de la doorbell (v2.1)
 # À coller dans un tableau de bord (mode YAML) ou une nouvelle vue.
 # Adapte les entity_id `sensor.doorbell_192_168_1_50_*` à ton IP réelle.
-# Pour un rendu plus léché : cartes Mushroom (HACS) — optionnel.
+#
+# La 2.1 crée, POUR CHAQUE code, des entités éditables (PIN / téléphone / email)
+# + un bouton Supprimer. Deux façons de les afficher :
+#   • Section « Modifier / Supprimer » ci-dessous = carte `auto-entities` (HACS,
+#     https://github.com/thomasloven/lovelace-auto-entities) — se remplit toute
+#     seule à chaque code créé.
+#   • OU sans rien installer : Paramètres → Appareils → « Doorbell … » liste ces
+#     entités et permet de les éditer/supprimer en ligne.
 # =============================================================================
 title: Accès
 path: acces
@@ -18,9 +25,10 @@ sections:
         entities:
           - entity: input_text.doorbell_new_pin
           - entity: input_text.doorbell_new_label
+          - entity: input_text.doorbell_new_phone
           - entity: input_text.doorbell_new_email
       - type: button
-        name: Créer le code (+ email)
+        name: Créer le code
         icon: mdi:check
         tap_action:
           action: perform-action
@@ -34,9 +42,13 @@ sections:
         icon: mdi:format-list-bulleted
       - type: markdown
         content: |
-          {% set ns = namespace(t='| Libellé | UID | Type | PIN | Email |\n|---|---|---|:---:|---|\n') %}
-          {% for e in state_attr('sensor.doorbell_192_168_1_50_staged_pin_codes','entries') or [] %}
-          {% set ns.t = ns.t + '| ' + (e.label or '—') + ' | `' + e.uid + '` | ' + ('virtuel' if e.virtual else e.type) + ' | ' + ('✅' if e.pin_set else '—') + ' | ' + (e.email or '—') + ' |\n' %}
+          {% set src = 'sensor.doorbell_192_168_1_50_staged_pin_codes' %}
+          {% set ns = namespace(t='| Libellé | PIN | Téléphone | Email | Envoyer | UID |\n|---|:---:|---|---|:---:|---|\n') %}
+          {% for e in state_attr(src,'entries') or [] %}
+          {% set digits = (e.phone or '') | regex_replace('[^0-9]','') %}
+          {% set msg = ('Votre code d\'accès à la porte : ' ~ (e.pin or '') ~ ' (tapez-le puis #)') | urlencode %}
+          {% set wa = ('[📲](https://wa.me/' ~ digits ~ '?text=' ~ msg ~ ')') if (digits and e.pin) else '—' %}
+          {% set ns.t = ns.t + '| ' + (e.label or '—') + ' | `' + (e.pin or '—') + '` | ' + (e.phone or '—') + ' | ' + (e.email or '—') + ' | ' + wa + ' | `' + e.uid + '` |\n' %}
           {% endfor %}
           {{ ns.t }}
       - type: button
@@ -45,6 +57,31 @@ sections:
         tap_action:
           action: perform-action
           perform_action: script.doorbell_apply
+
+  # --- Modifier / Supprimer (entités par-code de la 2.1) ---------------------
+  # Nécessite la carte `auto-entities` (HACS). Sinon, retire cette section et
+  # édite les codes depuis Paramètres → Appareils → « Doorbell … ».
+  - type: grid
+    cards:
+      - type: heading
+        heading: Modifier / Supprimer
+        icon: mdi:pencil
+      - type: custom:auto-entities
+        card:
+          type: entities
+          state_color: true
+        filter:
+          include:
+            - entity_id: "text.*_pin"
+              integration: doorbell_local
+            - entity_id: "text.*_phone"
+              integration: doorbell_local
+            - entity_id: "text.*_email"
+              integration: doorbell_local
+            - entity_id: "button.*_supprimer*"
+              integration: doorbell_local
+        sort:
+          method: friendly_name
 
   - type: grid
     cards:
