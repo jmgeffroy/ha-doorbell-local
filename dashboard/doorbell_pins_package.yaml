@@ -48,19 +48,17 @@ script:
           label: "{{ label }}"
           email: "{{ email }}"
           phone: "{{ phone }}"
-      # Envoi email si une adresse est fournie (remplace notify.doorbell_email par le tien)
-      - if:
-          - condition: template
-            value_template: "{{ email | length > 3 }}"
-        then:
-          - service: notify.doorbell_email
-            data:
-              target: "{{ email }}"
-              title: "Votre code d'accès"
-              message: >-
-                Bonjour,
-                Votre code d'accès à la porte est : {{ pin }}
-                Tapez-le suivi de # sur le clavier.
+      # Option email : décommente ce bloc SI tu as un service notify (SMTP)
+      # configuré, et remplace notify.doorbell_email par le tien.
+      # - if:
+      #     - condition: template
+      #       value_template: "{{ email | length > 3 }}"
+      #   then:
+      #     - service: notify.doorbell_email
+      #       data:
+      #         target: "{{ email }}"
+      #         title: "Votre code d'accès"
+      #         message: "Votre code d'accès à la porte est : {{ pin }} (tapez-le puis #)."
       # Nettoie le formulaire
       - service: input_text.set_value
         target: { entity_id: input_text.doorbell_new_pin }
@@ -74,8 +72,7 @@ script:
       - service: input_text.set_value
         target: { entity_id: input_text.doorbell_new_phone }
         data: { value: "" }
-      # Rappelle d'appliquer sur la doorbell
-      - service: script.doorbell_apply
+      # NB : pas d'auto-apply — on crée N codes puis on clique « Appliquer » 1×.
 
   # --- Appliquer le fichier sur la doorbell ---------------------------------
   # Appelle l'agent UART (doorbell_uart_agent.py) qui tape la ligne wget+reboot
