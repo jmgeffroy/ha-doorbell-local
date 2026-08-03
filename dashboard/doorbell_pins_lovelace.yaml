@@ -40,17 +40,20 @@ sections:
       - type: heading
         heading: Codes actifs
         icon: mdi:format-list-bulleted
+      # NB : on émet de VRAIES lignes markdown (pas une grosse chaîne `ns.t`) —
+      # sinon les lignes vides que Jinja accumule cassent le rendu (table en
+      # texte brut). `content:` en `|` OU `>` marche alors indifféremment.
       - type: markdown
         content: |
-          {% set src = 'sensor.doorbell_192_168_1_50_staged_pin_codes' %}
-          {% set ns = namespace(t='| Libellé | PIN | Téléphone | Email | Envoyer | UID |\n|---|:---:|---|---|:---:|---|\n') %}
-          {% for e in state_attr(src,'entries') or [] %}
-          {% set digits = (e.phone or '') | regex_replace('[^0-9]','') %}
-          {% set msg = ('Votre code d\'accès à la porte : ' ~ (e.pin or '') ~ ' (tapez-le puis #)') | urlencode %}
-          {% set wa = ('[📲](https://wa.me/' ~ digits ~ '?text=' ~ msg ~ ')') if (digits and e.pin) else '—' %}
-          {% set ns.t = ns.t + '| ' + (e.label or '—') + ' | `' + (e.pin or '—') + '` | ' + (e.phone or '—') + ' | ' + (e.email or '—') + ' | ' + wa + ' | `' + e.uid + '` |\n' %}
-          {% endfor %}
-          {{ ns.t }}
+          {% set src = 'sensor.doorbell_192_168_1_50_staged_pin_codes' -%}
+          | Libellé | PIN | Téléphone | Email | Envoyer | UID |
+          |---|:---:|---|---|:---:|---|
+          {% for e in state_attr(src,'entries') or [] -%}
+          {% set digits = (e.phone or '') | regex_replace('[^0-9]','') -%}
+          {% set msg = ('Votre code d\'accès à la porte : ' ~ (e.pin or '') ~ ' (tapez-le puis #)') | urlencode -%}
+          {% set wa = ('[📲](https://wa.me/' ~ digits ~ '?text=' ~ msg ~ ')') if (digits and e.pin) else '—' -%}
+          | {{ e.label or '—' }} | `{{ e.pin or '—' }}` | {{ e.phone or '—' }} | {{ e.email or '—' }} | {{ wa }} | `{{ e.uid }}` |
+          {% endfor -%}
       - type: button
         name: Appliquer sur la porte
         icon: mdi:upload
