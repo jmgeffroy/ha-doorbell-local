@@ -93,6 +93,39 @@ script:
             Fichier envoyé à la doorbell (wget + reboot).
             Le device redémarre (~1 min), puis les codes sont actifs.
 
+  # --- Nettoyer les codes de test (cartes virtuelles f0000000 -> f0000008) ---
+  # Supprime d'un coup les 9 codes de test du roster (garde f0000009 si présent).
+  # N'applique PAS tout seul : clique « Appliquer » ensuite pour pousser.
+  doorbell_cleanup_test_codes:
+    alias: "Doorbell — nettoyer les codes de test"
+    icon: mdi:broom
+    mode: single
+    sequence:
+      - repeat:
+          for_each:
+            - "f0000000"
+            - "f0000001"
+            - "f0000002"
+            - "f0000003"
+            - "f0000004"
+            - "f0000005"
+            - "f0000006"
+            - "f0000007"
+            - "f0000008"
+          sequence:
+            # continue_on_error : un UID déjà absent ne stoppe pas la boucle
+            - service: doorbell_local.remove_entry
+              continue_on_error: true
+              data:
+                uid: "{{ repeat.item }}"
+      - service: persistent_notification.create
+        data:
+          notification_id: doorbell_cleanup
+          title: "Doorbell"
+          message: >-
+            Codes de test retirés du roster. Clique « Appliquer sur la porte »
+            pour pousser le fichier régénéré (wget + reboot).
+
 # Appel HTTP vers l'agent UART sur l'hôte (adapte l'IP de l'hôte et le token).
 rest_command:
   doorbell_apply_uart:
