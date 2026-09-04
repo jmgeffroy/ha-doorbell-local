@@ -6,9 +6,13 @@ DOMAIN = "doorbell_local"
 CONF_HOST = "host"
 CONF_PORT = "port"
 CONF_SCAN_INTERVAL = "scan_interval"
+# Nom du fichier ICCardDB publié dans /config/www/ (servi à /local/<nom>).
+# UN NOM PAR DOORBELL : deux entrées qui partagent le même nom s'écrasent.
+CONF_FILE_NAME = "file_name"
 
 DEFAULT_PORT = 34952
 DEFAULT_SCAN_INTERVAL = 300  # secondes ; la liste de cartes change rarement
+DEFAULT_FILE_NAME = "ICCardDB0.ext"  # historique : la première doorbell le garde
 
 # Services réseau (MSG server, instantanés, sans reboot)
 SERVICE_REVOKE_CARD = "revoke_card"

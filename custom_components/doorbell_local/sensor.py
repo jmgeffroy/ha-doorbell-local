@@ -114,6 +114,6 @@ class DoorbellRosterSensor(SensorEntity):
     def extra_state_attributes(self) -> dict:
         return {
             "entries": [self._entry_view(e) for e in self._roster.entries],
-            "staged_file": "/local/ICCardDB0.ext",
+            "staged_file": self._roster.local_url,
             "seq": self._roster.seq,
         }

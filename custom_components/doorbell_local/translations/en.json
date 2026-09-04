@@ -7,12 +7,14 @@
         "data": {
           "host": "IP address",
           "port": "TCP port",
-          "scan_interval": "Refresh interval (seconds)"
+          "scan_interval": "Refresh interval (seconds)",
+          "file_name": "ICCardDB file name (one per doorbell)"
         }
       }
     },
     "error": {
-      "cannot_connect": "Could not reach the doorbell on this address/port."
+      "cannot_connect": "Could not reach the doorbell on this address/port.",
+      "file_name_in_use": "Another doorbell already publishes this file name. Pick a different one, otherwise both would overwrite each other."
     },
     "abort": {
       "already_configured": "This doorbell is already configured."

@@ -30,7 +30,9 @@ from .const import (
     ATTR_UID,
     CONF_HOST,
     CONF_PORT,
+    CONF_FILE_NAME,
     CONF_SCAN_INTERVAL,
+    DEFAULT_FILE_NAME,
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -94,7 +96,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # est absent, puis récupérera au prochain poll.
     await coordinator.async_refresh()
 
-    roster = Roster(hass, entry.entry_id)
+    roster = Roster(
+        hass, entry.entry_id, entry.data.get(CONF_FILE_NAME, DEFAULT_FILE_NAME)
+    )
     await roster.load()
     # amorçage : importe les cartes du device (UID+type) si le roster est vierge
     if roster.import_cards(coordinator.data or []):

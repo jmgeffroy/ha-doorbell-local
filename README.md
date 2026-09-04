@@ -85,6 +85,47 @@ before creating the entry.
 > Note that port scanners often report the port as *filtered* — the server only answers
 > properly framed connections, so trust the integration, not `nmap`.
 
+### Several doorbells (v2.2)
+
+Add one config entry per device. Each entry keeps its **own roster**, and each publishes
+its **own ICCardDB file** — that is what the **ICCardDB file name** field is for.
+
+| Doorbell | File name | Served at |
+|---|---|---|
+| first (default) | `ICCardDB0.ext` | `/local/ICCardDB0.ext` |
+| second | e.g. `ICCardDB0_gate.ext` | `/local/ICCardDB0_gate.ext` |
+
+Leaving the default on an existing entry changes nothing: **upgrading to v2.2 requires no
+migration.** Give every additional doorbell a distinct name — the config flow refuses a
+name already taken, because two entries sharing one file would overwrite each other and
+“Apply” on one would push the *other* one's codes.
+
+Each doorbell then needs its own entry in the UART agent, pointing at its own URL:
+
+```python
+DOORBELLS = {
+    "front":  {"port": "/dev/ttyUSB0", "file_url": "http://ha.local:8123/local/ICCardDB0.ext"},
+    "gate":   {"port": "/dev/ttyUSB1", "file_url": "http://ha.local:8123/local/ICCardDB0_gate.ext"},
+}
+```
+
+and one `rest_command` per doorbell, addressing it with `?id=`:
+
+```yaml
+rest_command:
+  doorbell_apply_front:
+    url: "http://AGENT_HOST:8765/apply?id=front"
+    method: POST
+    headers:
+      X-Token: "your-token"
+```
+
+The `staged_file` attribute of the *staged PIN codes* sensor always tells you which URL a
+given entry publishes — copy it into `file_url`.
+
+> ⚠️ Each USB-UART adapter must expose a **unique serial number**, otherwise the port names
+> are not stable (many CH340 clones share one, which makes them impossible to tell apart).
+
 ---
 
 ## Entities

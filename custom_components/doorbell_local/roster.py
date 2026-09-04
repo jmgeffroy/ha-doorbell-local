@@ -15,13 +15,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.storage import Store
 
-from .const import DOMAIN
+from .const import DEFAULT_FILE_NAME, DOMAIN
 from .iccarddb import build_iccarddb
 
 _LOGGER = logging.getLogger(__name__)
 
 STORE_VERSION = 1
-WWW_FILENAME = "ICCardDB0.ext"
+WWW_FILENAME = DEFAULT_FILE_NAME  # repli pour une entrée sans nom explicite
 VIRTUAL_UID_BASE = 0xF0000000  # plage des UID « cartes virtuelles » (PIN autonomes)
 SEQ_START = 1000  # seq de départ (dépasse largement les seq réels du device)
 
@@ -34,9 +34,15 @@ def roster_signal(entry_id: str) -> str:
 class Roster:
     """Roster persistant + génération du fichier ICCardDB dans /config/www/."""
 
-    def __init__(self, hass: HomeAssistant, entry_id: str) -> None:
+    def __init__(
+        self, hass: HomeAssistant, entry_id: str, file_name: str = WWW_FILENAME
+    ) -> None:
         self._hass = hass
         self._entry_id = entry_id
+        # Chaque doorbell publie SON fichier : deux entrées qui partageraient le
+        # même nom s'écraseraient, et « Appliquer » sur l'une pousserait les codes
+        # de l'autre.
+        self._file_name = file_name
         self._store = Store(hass, STORE_VERSION, f"doorbell_local_{entry_id}_roster")
         self.entries: list[dict] = []
         self.seq: int = SEQ_START
@@ -137,8 +143,18 @@ class Roster:
         return added
 
     # -- génération du fichier ---------------------------------------------
+    @property
+    def file_name(self) -> str:
+        """Nom du fichier ICCardDB publié pour cette doorbell."""
+        return self._file_name
+
+    @property
+    def local_url(self) -> str:
+        """URL servie par HA — à recopier dans `file_url` de l'agent UART."""
+        return f"/local/{self._file_name}"
+
     def _www_path(self) -> str:
-        return self._hass.config.path("www", WWW_FILENAME)
+        return self._hass.config.path("www", self._file_name)
 
     def _write_file(self) -> str:
         self.seq += 1

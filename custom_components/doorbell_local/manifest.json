@@ -1,7 +1,7 @@
 {
   "domain": "doorbell_local",
   "name": "Doorbell Local (Tuya/sun8i cards)",
-  "version": "2.1.3",
+  "version": "2.2.0",
   "config_flow": true,
   "documentation": "https://github.com/jmgeffroy/ha-doorbell-local",
   "issue_tracker": "https://github.com/jmgeffroy/ha-doorbell-local/issues",

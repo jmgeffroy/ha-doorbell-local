@@ -7,12 +7,14 @@
         "data": {
           "host": "Adresse IP",
           "port": "Port TCP",
-          "scan_interval": "Intervalle de rafraîchissement (secondes)"
+          "scan_interval": "Intervalle de rafraîchissement (secondes)",
+          "file_name": "Nom du fichier ICCardDB (un par doorbell)"
         }
       }
     },
     "error": {
-      "cannot_connect": "Impossible de joindre la doorbell à cette adresse/ce port."
+      "cannot_connect": "Impossible de joindre la doorbell à cette adresse/ce port.",
+      "file_name_in_use": "Une autre doorbell publie déjà ce nom de fichier. Choisis-en un autre, sinon les deux s'écraseraient."
     },
     "abort": {
       "already_configured": "Cette doorbell est déjà configurée."
