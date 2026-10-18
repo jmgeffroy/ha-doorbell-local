@@ -80,14 +80,28 @@ script:
   doorbell_apply:
     alias: "Doorbell — appliquer (staging -> device)"
     icon: mdi:upload
+    # Le défaut d'un `fields:` ne vaut QUE pour l'interface : un bouton qui appelle
+    # le script sans rien passer laisserait la variable indéfinie, et l'URL
+    # finirait en `?id=`. D'où le `| default(...)`, qui garantit le repli.
+    fields:
+      doorbell_id:
+        name: Doorbell
+        description: "Identifiant dans l'agent UART (sous-sol, rdc...)"
+        default: sous-sol
+        selector:
+          text:
+    variables:
+      target_id: "{{ doorbell_id | default('sous-sol') }}"
     sequence:
       - service: rest_command.doorbell_apply_uart
+        data:
+          doorbell_id: "{{ target_id }}"
       - service: persistent_notification.create
         data:
           notification_id: doorbell_apply
           title: "Doorbell"
           message: >-
-            Fichier envoyé à la doorbell (wget + reboot).
+            Fichier envoyé à la doorbell {{ target_id }} (wget + reboot).
             Le device redémarre (~1 min), puis les codes sont actifs.
 
   # --- Nettoyer les codes de test (cartes virtuelles f0000000 -> f0000008) ---
@@ -124,9 +138,11 @@ script:
             pour pousser le fichier régénéré (wget + reboot).
 
 # Appel HTTP vers l'agent UART sur l'hôte (adapte l'IP de l'hôte et le token).
+# `doorbell_id` désigne l'entrée du dict DOORBELLS de l'agent : une seule commande
+# suffit donc pour autant de doorbells que tu veux.
 rest_command:
   doorbell_apply_uart:
-    url: "http://WINDOWS_HOST_IP:8765/apply"
+    url: "http://WINDOWS_HOST_IP:8765/apply?id={{ doorbell_id }}"
     method: POST
     headers:
       X-Token: "change-me"
