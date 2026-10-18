@@ -187,6 +187,37 @@ worth stating plainly.
 > firmware quirk: public passwords are compared **in reverse** — the factory
 > `654321` is opened by typing `123456`, the most guessed code there is.
 
+### Reacting to a valid code (access events)
+
+**The firmware does not expose keypad unlocks to Tuya.** Its DP set is camera-only —
+there is no lock, PIN, card or user data point. An automation that waits for the
+doorbell to *report* an unlock will therefore never fire when someone types a code.
+
+The UART console is the only place where it is visible:
+
+```
+========pwd = 1234=======
+Public pwd is error!
+User  2 pwd is ok!          <- the PIN matched, and whose it is
+=======Dev Lock on!======   <- the doorbell energises its lock output
+=======Dev Lock off!======  <- released 2 s later
+```
+
+Give a doorbell an `event_url` in the agent and it will POST to that Home Assistant
+webhook on every unlock:
+
+```json
+{"doorbell": "front", "event": "unlock", "user": 2, "source": "keypad", "ts": 1760000000}
+```
+
+`source` is `keypad`, `card` or `remote`. `user` is the firmware's own index, so you
+also get an **access log**: who opened, and when — information no other channel
+exposes. Two unlocks within 3 seconds count as one, and the identity is only attached
+when it was announced in the preceding 5 seconds.
+
+Use `local_only: true` on the webhook. It opens a door: it has no business being
+reachable from outside your network.
+
 ### Driving the strike
 
 This integration deliberately does **not** drive the lock — on these units the strike is wired
