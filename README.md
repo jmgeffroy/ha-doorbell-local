@@ -167,6 +167,28 @@ Forces an immediate re-read of the card database.
 
 ## Opening the door
 
+### Entering a PIN at the keypad
+
+Type the PIN, then `#`. **Do not press `*` first.**
+
+```
+1234 #       opens the door
+* 1234 #     silently ignored
+```
+
+The leading `*` starts a *public password* entry — a separate mechanism, stored
+elsewhere in the firmware — so the keypad never compares your digits against the card
+PINs this integration writes. The failure is completely silent: no beep, and not a
+single line in the UART console. It cost us an evening of wrong conclusions, so it is
+worth stating plainly.
+
+> ⚠️ **Change the factory codes before you mount the unit.** `AdminPwd` (999999),
+> `UnlockPwd` (654321) and `HostagePwd` (123456) ship enabled. And beware a second
+> firmware quirk: public passwords are compared **in reverse** — the factory
+> `654321` is opened by typing `123456`, the most guessed code there is.
+
+### Driving the strike
+
 This integration deliberately does **not** drive the lock — on these units the strike is wired
 to a relay that is usually exposed as its own Tuya device. With
 [LocalTuya](https://github.com/xZetsubou/hass-localtuya) providing a switch entity, a template
