@@ -79,6 +79,11 @@ def apply_cmd(file_url: str) -> str:
 
 
 # Ce que la doorbell imprime sur sa console quand elle ouvre, et juste avant.
+# Pause entre deux caracteres envoyes sur la liaison serie. Voir send_line :
+# sans elle, une ligne longue arrive tronquee. 4 ms -> une seconde environ pour
+# la ligne d'apply, ce qui est sans consequence.
+CHAR_DELAY = 0.004
+
 RE_UNLOCK = re.compile(r"Dev Lock on!")
 RE_USER_PIN = re.compile(r"User\s+(\d+)\s+pwd is ok", re.I)
 RE_CARD = re.compile(r"card.*userid:\s*(\d+)", re.I)
@@ -181,8 +186,18 @@ class Link:
             self._ser.write(b"\x15")   # Ctrl-U : efface toute saisie résiduelle
             self._ser.flush()
             time.sleep(0.25)
-            self._ser.write((cmd + "\n").encode())
-            self._ser.flush()
+            # Caractere par caractere. Le shell de la doorbell PERD DES OCTETS
+            # quand on lui envoie une ligne longue d'un trait pendant qu'il
+            # ecrit sur sa console — et il ecrit en permanence. Mesure du
+            # 19/10/2026 sur la RDC : la ligne d'apply (110 caracteres)
+            # arrivait coupee en plein milieu de l'URL, suivie d'octets
+            # corrompus ; rien ne s'executait, et RIEN NE LE SIGNALAIT. Le
+            # sous-sol passait, lui, parce que son URL est plus courte : le
+            # defaut attendait une URL assez longue pour se manifester.
+            for byte in (cmd + "\n").encode():
+                self._ser.write(bytes([byte]))
+                self._ser.flush()
+                time.sleep(CHAR_DELAY)
 
     def tail(self, n: int = 60) -> list[str]:
         return list(self._lines)[-n:]
