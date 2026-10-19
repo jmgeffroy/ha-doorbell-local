@@ -64,10 +64,10 @@ script:
           # -----------------------------------------------------------------
           targets: &doorbell_targets
             Sous-sol:
-              entry: "A_RENSEIGNER"
+              entry: "A_RENSEIGNER_1"
               agent: "sous-sol"
             RDC:
-              entry: "A_RENSEIGNER"
+              entry: "A_RENSEIGNER_2"
               agent: "rdc"
           target: "{{ targets.get(states('input_select.doorbell_target'), {}) }}"
           pin: "{{ states('input_text.doorbell_new_pin') }}"
@@ -80,7 +80,8 @@ script:
       # Sans `entry_id`, l'integration refuse de deviner des qu'il y a deux
       # doorbells — et le code partirait sur la mauvaise porte si elle devinait.
       - condition: template
-        value_template: "{{ target.get('entry', 'A_RENSEIGNER') != 'A_RENSEIGNER' }}"
+        value_template: >-
+          {{ not target.get('entry', 'A_RENSEIGNER').startswith('A_RENSEIGNER') }}
         alias: "Doorbell choisie et renseignee"
       - service: doorbell_local.add_code
         data:
