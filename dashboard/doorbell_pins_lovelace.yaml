@@ -23,6 +23,9 @@ sections:
         icon: mdi:key-plus
       - type: entities
         entities:
+          # Commande AUSSI le bouton « Appliquer » plus bas : une porte choisie
+          # ici est la porte visee partout sur cette vue.
+          - entity: input_select.doorbell_target
           - entity: input_text.doorbell_new_pin
           - entity: input_text.doorbell_new_label
           - entity: input_text.doorbell_new_phone

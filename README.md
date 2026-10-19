@@ -109,6 +109,26 @@ DOORBELLS = {
 }
 ```
 
+#### Saying *which* doorbell
+
+Every service takes an optional **`entry_id`**. With a single doorbell you may omit it.
+With two, the integration **refuses to guess** — it raises `Plusieurs doorbells :
+préciser 'entry_id'` rather than risk writing a code to the wrong door. The field is a
+drop-down in *Developer tools → Actions*; switch that call to YAML to read the id.
+
+The dashboard package resolves it for you: an `input_select.doorbell_target` names the
+door, and a single table maps that name to the integration entry **and** to the agent key.
+Fill it once, at the top of `doorbell_create_code`:
+
+```yaml
+targets: &doorbell_targets
+  Sous-sol: { entry: "01J...", agent: "sous-sol" }
+  RDC:      { entry: "01K...", agent: "rdc" }
+```
+
+The “Apply” script reuses the same table through the YAML anchor, so the mapping exists
+in exactly one place. The select's options must match the table's keys word for word.
+
 and one `rest_command` per doorbell, addressing it with `?id=`:
 
 ```yaml

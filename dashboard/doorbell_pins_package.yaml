@@ -11,11 +11,28 @@
 # admin uniquement). Le composant, lui, ne journalise jamais les PIN.
 # =============================================================================
 
+# Quelle porte ? Ce selecteur commande TOUT : la creation d'un code comme
+# l'« Appliquer ». Les options doivent reprendre MOT POUR MOT les cles de la
+# table `targets` plus bas — c'est par ce nom qu'un bouton retrouve sa doorbell.
+input_select:
+  doorbell_target:
+    name: Doorbell
+    icon: mdi:door
+    options:
+      - Sous-sol
+      - RDC
+
 input_text:
   doorbell_new_pin:
     name: Nouveau PIN (4 chiffres)
     max: 4
-    pattern: "[0-9]{4}"
+    # PAS de `pattern: "[0-9]{4}"` ICI, c'est une bombe a retardement : le script
+    # remet le champ a "" apres chaque creation, et au redemarrage suivant HA
+    # confronte cet etat vide au motif, echoue, et REFUSE DE CREER L'ENTITE
+    # (« provides state which does not match expected pattern »). Le champ
+    # devient alors un fantome grise du registre, sans rien dans l'interface qui
+    # dise pourquoi. Les quatre chiffres sont deja verifies par le script, juste
+    # avant `add_code` — c'est la que la garde a sa place.
     icon: mdi:dialpad
   doorbell_new_label:
     name: Libellé
@@ -35,6 +52,24 @@ script:
     mode: single
     sequence:
       - variables:
+          # -----------------------------------------------------------------
+          # LES DOORBELLS — le seul endroit a renseigner, les autres scripts
+          # recopient cette table (ancre YAML `doorbell_targets`).
+          #   cle   = ce qu'affiche input_select.doorbell_target, mot pour mot
+          #   entry = l'entree d'integration visee (`entry_id` des services)
+          #   agent = la cle du dict DOORBELLS de l'agent UART
+          # Trouver un `entry` : Outils de developpement -> Actions ->
+          # « Doorbell — Regenerer le fichier » -> choisir la doorbell dans la
+          # liste -> basculer en YAML : l'identifiant y est ecrit.
+          # -----------------------------------------------------------------
+          targets: &doorbell_targets
+            Sous-sol:
+              entry: "A_RENSEIGNER"
+              agent: "sous-sol"
+            RDC:
+              entry: "A_RENSEIGNER"
+              agent: "rdc"
+          target: "{{ targets.get(states('input_select.doorbell_target'), {}) }}"
           pin: "{{ states('input_text.doorbell_new_pin') }}"
           label: "{{ states('input_text.doorbell_new_label') }}"
           email: "{{ states('input_text.doorbell_new_email') }}"
@@ -42,8 +77,14 @@ script:
       - condition: template
         value_template: "{{ pin | regex_match('^[0-9]{4}$') }}"
         alias: "PIN = 4 chiffres"
+      # Sans `entry_id`, l'integration refuse de deviner des qu'il y a deux
+      # doorbells — et le code partirait sur la mauvaise porte si elle devinait.
+      - condition: template
+        value_template: "{{ target.get('entry', 'A_RENSEIGNER') != 'A_RENSEIGNER' }}"
+        alias: "Doorbell choisie et renseignee"
       - service: doorbell_local.add_code
         data:
+          entry_id: "{{ target.entry }}"
           pin: "{{ pin }}"
           label: "{{ label }}"
           email: "{{ email }}"
@@ -91,7 +132,11 @@ script:
         selector:
           text:
     variables:
-      target_id: "{{ doorbell_id | default('sous-sol') }}"
+      targets: *doorbell_targets
+      # Un appel explicite garde la main ; sinon on suit le selecteur.
+      target_id: >-
+        {{ doorbell_id | default(targets.get(states('input_select.doorbell_target'),
+           {}).get('agent', 'sous-sol'), true) }}
     sequence:
       - service: rest_command.doorbell_apply_uart
         data:

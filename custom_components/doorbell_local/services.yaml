@@ -28,8 +28,14 @@ set_pin:
       selector: { text: { type: tel } }
     entry_id:
       name: Doorbell
+      description: >-
+        Laquelle. Facultatif tant qu'il n'y en a qu'une ; OBLIGATOIRE des qu'il
+        y en a deux — l'integration refuse de deviner plutot que d'ouvrir la
+        mauvaise porte.
       required: false
-      selector: { text: }
+      selector:
+        config_entry:
+          integration: doorbell_local
 
 add_code:
   name: Ajouter un code PIN indépendant
@@ -61,8 +67,14 @@ add_code:
       selector: { text: { type: tel } }
     entry_id:
       name: Doorbell
+      description: >-
+        Laquelle. Facultatif tant qu'il n'y en a qu'une ; OBLIGATOIRE des qu'il
+        y en a deux — l'integration refuse de deviner plutot que d'ouvrir la
+        mauvaise porte.
       required: false
-      selector: { text: }
+      selector:
+        config_entry:
+          integration: doorbell_local
 
 update_contact:
   name: Modifier le contact d'une entrée
@@ -90,8 +102,14 @@ update_contact:
       selector: { text: { type: tel } }
     entry_id:
       name: Doorbell
+      description: >-
+        Laquelle. Facultatif tant qu'il n'y en a qu'une ; OBLIGATOIRE des qu'il
+        y en a deux — l'integration refuse de deviner plutot que d'ouvrir la
+        mauvaise porte.
       required: false
-      selector: { text: }
+      selector:
+        config_entry:
+          integration: doorbell_local
 
 remove_entry:
   name: Supprimer un badge/code du roster
@@ -105,8 +123,14 @@ remove_entry:
       selector: { text: }
     entry_id:
       name: Doorbell
+      description: >-
+        Laquelle. Facultatif tant qu'il n'y en a qu'une ; OBLIGATOIRE des qu'il
+        y en a deux — l'integration refuse de deviner plutot que d'ouvrir la
+        mauvaise porte.
       required: false
-      selector: { text: }
+      selector:
+        config_entry:
+          integration: doorbell_local
 
 import_cards:
   name: Importer les cartes du device
@@ -114,8 +138,14 @@ import_cards:
   fields:
     entry_id:
       name: Doorbell
+      description: >-
+        Laquelle. Facultatif tant qu'il n'y en a qu'une ; OBLIGATOIRE des qu'il
+        y en a deux — l'integration refuse de deviner plutot que d'ouvrir la
+        mauvaise porte.
       required: false
-      selector: { text: }
+      selector:
+        config_entry:
+          integration: doorbell_local
 
 stage:
   name: Régénérer le fichier
@@ -123,8 +153,14 @@ stage:
   fields:
     entry_id:
       name: Doorbell
+      description: >-
+        Laquelle. Facultatif tant qu'il n'y en a qu'une ; OBLIGATOIRE des qu'il
+        y en a deux — l'integration refuse de deviner plutot que d'ouvrir la
+        mauvaise porte.
       required: false
-      selector: { text: }
+      selector:
+        config_entry:
+          integration: doorbell_local
 
 revoke_card:
   name: Révoquer une carte (réseau, instantané)
@@ -138,8 +174,14 @@ revoke_card:
       selector: { text: }
     entry_id:
       name: Doorbell
+      description: >-
+        Laquelle. Facultatif tant qu'il n'y en a qu'une ; OBLIGATOIRE des qu'il
+        y en a deux — l'integration refuse de deviner plutot que d'ouvrir la
+        mauvaise porte.
       required: false
-      selector: { text: }
+      selector:
+        config_entry:
+          integration: doorbell_local
 
 refresh:
   name: Rafraîchir la liste des cartes
@@ -147,5 +189,11 @@ refresh:
   fields:
     entry_id:
       name: Doorbell
+      description: >-
+        Laquelle. Facultatif tant qu'il n'y en a qu'une ; OBLIGATOIRE des qu'il
+        y en a deux — l'integration refuse de deviner plutot que d'ouvrir la
+        mauvaise porte.
       required: false
-      selector: { text: }
+      selector:
+        config_entry:
+          integration: doorbell_local
