@@ -38,6 +38,7 @@ import time
 import urllib.request
 from collections import deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import serial  # pip install pyserial
@@ -68,14 +69,45 @@ DOORBELLS = {
     #     "file_url": "http://homeassistant.local:8123/local/ICCardDB0_portail.ext",
     # },
 }
+# --- Configuration locale, HORS du code --------------------------------------
+# `doorbells.json`, a cote de ce script, ECRASE TOKEN et DOORBELLS ci-dessus :
+#   {"token": "...", "doorbells": {"sous-sol": {"port": "COM4", ...}}}
+# C'est ce qui permet de mettre le script a jour d'un seul wget sans perdre le
+# jeton ni les ports. Sans ce fichier, les valeurs ci-dessus servent telles
+# quelles, et le script reste utilisable seul.
+_CONF = Path(__file__).with_name("doorbells.json")
+if _CONF.exists():
+    _conf = json.loads(_CONF.read_text(encoding="utf-8"))
+    TOKEN = _conf.get("token", TOKEN)
+    DOORBELLS = _conf.get("doorbells", DOORBELLS)
+    print(f"[agent] configuration lue dans {_CONF.name}")
 # ---------------------------------------------------------
 
 
-def apply_cmd(file_url: str) -> str:
-    return (
-        f"wget -O /data/ICCardDB0.ext {file_url}"
-        " ; rm -f /data/ICCardDB1.ext ; sync ; reboot"
-    )
+# Pause entre deux commandes d'une meme sequence (secondes).
+STEP_PAUSE = 1.0
+
+
+def apply_steps(file_url: str) -> list[str]:
+    """Decoupe l'apply en lignes COURTES, envoyees une par une.
+
+    Une seule longue ligne ne passe pas : quelque chose, cote doorbell, vide la
+    saisie en cours a intervalles reguliers. Mesure du 19/10/2026 — la ligne de
+    110 caracteres arrivait coupee, et le shell se plaignait de ses morceaux
+    (`-sh: t: not found`). Allonger la pause entre octets AGGRAVE le defaut :
+    a 4 ms la ligne passait, a 20 ms plus jamais. Ce n'est donc pas un debit
+    trop rapide, c'est un delai de grace trop court — il faut des lignes
+    breves, pas un envoi lent.
+
+    `cd /data` d'abord : les chemins absolus coutent 6 caracteres par mot.
+    """
+    return [
+        "cd /data",
+        f"wget -O ICCardDB0.ext {file_url}",
+        "rm -f ICCardDB1.ext",
+        "sync",
+        "reboot",
+    ]
 
 
 # Ce que la doorbell imprime sur sa console quand elle ouvre, et juste avant.
@@ -262,8 +294,13 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/apply":
             link = self._link(name)
             if link:
-                link.send_line(apply_cmd(link.file_url))
-                self._json(200, {"status": "apply sent", "id": link.name})
+                steps = apply_steps(link.file_url)
+                for i, step in enumerate(steps):
+                    link.send_line(step)
+                    if i + 1 < len(steps):
+                        time.sleep(STEP_PAUSE)
+                self._json(200, {"status": "apply sent", "id": link.name,
+                                 "steps": len(steps)})
         elif parsed.path == "/send":
             link = self._link(name)
             if not link:
