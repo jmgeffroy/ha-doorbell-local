@@ -77,7 +77,8 @@ DOORBELLS = {
 # quelles, et le script reste utilisable seul.
 _CONF = Path(__file__).with_name("doorbells.json")
 if _CONF.exists():
-    _conf = json.loads(_CONF.read_text(encoding="utf-8"))
+    # utf-8-sig : PowerShell ecrit un BOM que json.loads refuserait.
+    _conf = json.loads(_CONF.read_text(encoding="utf-8-sig"))
     TOKEN = _conf.get("token", TOKEN)
     DOORBELLS = _conf.get("doorbells", DOORBELLS)
     print(f"[agent] configuration lue dans {_CONF.name}")
