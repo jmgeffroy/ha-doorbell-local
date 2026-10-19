@@ -48,7 +48,16 @@ sections:
       # texte brut). `content:` en `|` OU `>` marche alors indifféremment.
       - type: markdown
         content: |
-          {% set src = 'sensor.doorbell_192_168_1_50_staged_pin_codes' -%}
+          {#- La carte suit input_select.doorbell_target. Les cles doivent
+              reprendre MOT POUR MOT les options du selecteur, et la valeur est
+              l'identifiant du capteur de CETTE doorbell (Outils de
+              developpement -> Etats, filtre `staged_pin_codes`). Renommer un
+              appareil change cet identifiant : le relire ici ce jour-la. -#}
+          {% set sensors = {
+               'Sous-sol': 'sensor.doorbell_192_168_1_50_staged_pin_codes',
+               'RDC': 'sensor.doorbell_rdc_staged_pin_codes',
+             } -%}
+          {% set src = sensors.get(states('input_select.doorbell_target'), '') -%}
           | Libellé | PIN | Téléphone | Email | Envoyer | UID |
           |---|:---:|---|---|:---:|---|
           {% for e in state_attr(src,'entries') or [] -%}

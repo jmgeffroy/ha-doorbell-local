@@ -157,7 +157,14 @@ script:
     alias: "Doorbell — nettoyer les codes de test"
     icon: mdi:broom
     mode: single
+    variables:
+      targets: *doorbell_targets
+      target: "{{ targets.get(states('input_select.doorbell_target'), {}) }}"
     sequence:
+      - condition: template
+        value_template: >-
+          {{ not target.get('entry', 'A_RENSEIGNER').startswith('A_RENSEIGNER') }}
+        alias: "Doorbell choisie et renseignee"
       - repeat:
           for_each:
             - "f0000000"
@@ -174,6 +181,7 @@ script:
             - service: doorbell_local.remove_entry
               continue_on_error: true
               data:
+                entry_id: "{{ target.entry }}"
                 uid: "{{ repeat.item }}"
       - service: persistent_notification.create
         data:
