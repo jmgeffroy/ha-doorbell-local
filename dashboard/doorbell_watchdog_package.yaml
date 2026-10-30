@@ -1,0 +1,84 @@
+# =============================================================================
+# Package Home Assistant — surveillance de l'agent UART
+# À déposer dans /config/packages/doorbell_watchdog.yaml
+#
+# POURQUOI CE FICHIER EXISTE. Le 19/10/2026 l'agent UART a été tué. Sa tâche
+# Windows ne se déclenchait qu'au démarrage du Geekom, qui n'a pas redémarré.
+# Résultat : ONZE JOURS pendant lesquels aucun code ne faisait plus rien, et
+# RIEN NULLE PART ne le signalait. Les codes, les webhooks, les automatisations
+# et le relais étaient intacts — il manquait le maillon du milieu, et son
+# absence était silencieuse.
+#
+# Surveiller la présence du processus NE SUFFIT PAS : l'adaptateur USB s'est
+# déjà figé deux fois en laissant l'agent bien vivant et la console muette.
+# On surveille donc le SILENCE de la console. Une console de doorbell débite en
+# permanence (~65 Ko / 100 s) : un silence n'est jamais un état normal.
+#
+# À ADAPTER : l'adresse de l'agent et le jeton (le même que le rest_command).
+# =============================================================================
+
+rest:
+  - resource: "http://AGENT_HOST:8765/health"
+    headers:
+      X-Token: "change-me"
+    scan_interval: 60
+    timeout: 10
+    sensor:
+      - name: "Doorbell agent silence"
+        unique_id: doorbell_agent_silence
+        # Agent injoignable -> le capteur devient `unavailable`, ce que le
+        # binary_sensor ci-dessous traite comme une panne.
+        value_template: "{{ value_json.worst_silence_s | round(0) }}"
+        unit_of_measurement: "s"
+        state_class: measurement
+        json_attributes:
+          - doorbells
+
+template:
+  - binary_sensor:
+      - name: "Doorbell agent en panne"
+        unique_id: doorbell_agent_down
+        device_class: problem
+        # `delay_on` de 10 min : la tâche Windows se relance toute seule toutes
+        # les 5 minutes. On ne veut pas d'alerte pour une reprise normale, mais
+        # on veut en avoir une si elle n'a pas eu lieu.
+        delay_on: "00:10:00"
+        state: >-
+          {% set s = states('sensor.doorbell_agent_silence') %}
+          {{ s in ['unavailable', 'unknown', 'none']
+             or (s | float(9999)) > 120 }}
+
+automation:
+  - alias: "Doorbell — alerte agent muet"
+    id: doorbell_agent_muet
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.doorbell_agent_en_panne
+        to: "on"
+    actions:
+      - action: persistent_notification.create
+        data:
+          notification_id: doorbell_agent
+          title: "Doorbell : l'agent ne répond plus"
+          message: >-
+            Les codes au clavier n'ouvrent plus les portes.
+            Détail par doorbell : {{ state_attr('sensor.doorbell_agent_silence',
+            'doorbells') }}
+      # Décommente et mets TON service notify pour être prévenu sur le téléphone.
+      # - action: notify.mobile_app_ton_telephone
+      #   data:
+      #     title: "Doorbell hors service"
+      #     message: "L'agent UART ne répond plus — les codes n'ouvrent plus."
+
+  - alias: "Doorbell — agent revenu"
+    id: doorbell_agent_revenu
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.doorbell_agent_en_panne
+        to: "off"
+    actions:
+      - action: persistent_notification.dismiss
+        data:
+          notification_id: doorbell_agent
