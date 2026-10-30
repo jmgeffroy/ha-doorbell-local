@@ -25,6 +25,7 @@ Endpoints (jeton partagé obligatoire dans l'en-tête X-Token) :
   POST /apply?id=<nom>             -> pousse /data/ICCardDB0.ext depuis HA + reboot
   POST /send  {"id":"<nom>","cmd"} -> commande shell arbitraire sur la doorbell
   GET  /read?id=<nom>              -> dernières lignes de la console UART
+  GET  /health                     -> silence_s par doorbell (surveillance HA)
 
 SÉCURITÉ : cet agent relaie des SHELLS ROOT. À n'exposer que sur un LAN de
 confiance (idéalement un VLAN isolé), change le TOKEN, ne l'ouvre JAMAIS sur Internet.
@@ -135,6 +136,10 @@ class Link:
         self._ser: serial.Serial | None = None
         self._last_user: tuple[int, str, float] | None = None  # (id, source, instant)
         self._last_event = 0.0
+        # Instant de la DERNIERE ligne recue. C'est le seul temoin qui distingue
+        # une console vivante d'un adaptateur fige : le processus va bien, le
+        # port est ouvert, et plus rien n'arrive. Vu deux fois en 2026.
+        self._last_line_at = 0.0
         threading.Thread(target=self._reader, daemon=True).start()
 
     def _open(self) -> serial.Serial:
@@ -159,6 +164,7 @@ class Link:
                         raw, buf = buf.split(b"\n", 1)
                         line = raw.decode(errors="replace").rstrip("\r")
                         self._lines.append(line)
+                        self._last_line_at = time.time()
                         self._watch(line)
             except Exception as err:  # noqa: BLE001
                 print(f"[{self.name}] lecture: {err} - reouverture")
@@ -232,6 +238,23 @@ class Link:
                 self._ser.flush()
                 time.sleep(CHAR_DELAY)
 
+    def health(self) -> dict:
+        """Depuis combien de temps cette doorbell n'a-t-elle rien ecrit ?
+
+        Une console de doorbell debite en permanence (~65 Ko / 100 s). Un
+        silence n'est JAMAIS un etat normal : c'est une panne. `silence_s`
+        au-dela d'une minute veut dire adaptateur fige ou cable debranche —
+        et dans ce cas l'agent repond encore tres bien, ce qui rend le defaut
+        invisible a qui ne regarde que le processus.
+        """
+        now = time.time()
+        return {
+            "port": self.port,
+            "open": self._ser is not None,
+            "silence_s": round(now - self._last_line_at, 1) if self._last_line_at else None,
+            "lines": len(self._lines),
+        }
+
     def tail(self, n: int = 60) -> list[str]:
         return list(self._lines)[-n:]
 
@@ -272,7 +295,17 @@ class Handler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         qs = parse_qs(parsed.query)
-        if parsed.path == "/read":
+        if parsed.path == "/health":
+            per = {name: link.health() for name, link in LINKS.items()}
+            ages = [h["silence_s"] for h in per.values() if h["silence_s"] is not None]
+            # `worst_silence_s` : une seule valeur a surveiller cote HA, quel
+            # que soit le nombre de doorbells. None tant qu'aucune n'a parle.
+            self._json(200, {
+                "doorbells": per,
+                "worst_silence_s": max(ages) if ages else None,
+                "count": len(per),
+            })
+        elif parsed.path == "/read":
             link = self._link((qs.get("id") or [""])[0])
             if link:
                 self._json(200, {"id": link.name, "lines": link.tail()})
