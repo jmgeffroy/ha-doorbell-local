@@ -86,6 +86,10 @@ if _CONF.exists():
 # ---------------------------------------------------------
 
 
+# Silence attribue a une doorbell dont le port est ferme ou qui n'a jamais rien
+# ecrit : une valeur enorme, jamais `None`, pour qu'elle domine toute comparaison.
+NEVER_SPOKE = 99999.0
+
 # Pause entre deux commandes d'une meme sequence (secondes).
 STEP_PAUSE = 1.0
 
@@ -297,12 +301,22 @@ class Handler(BaseHTTPRequestHandler):
         qs = parse_qs(parsed.query)
         if parsed.path == "/health":
             per = {name: link.health() for name, link in LINKS.items()}
-            ages = [h["silence_s"] for h in per.values() if h["silence_s"] is not None]
-            # `worst_silence_s` : une seule valeur a surveiller cote HA, quel
-            # que soit le nombre de doorbells. None tant qu'aucune n'a parle.
+            # Un port FERME ou qui n'a jamais rien dit compte comme un silence
+            # INFINI, pas comme une absence de mesure. Sinon la pire valeur
+            # ignore la doorbell morte et annonce que tout va bien — le defaut
+            # exact que ce point de sante est cense rendre impossible.
+            # (Mesure du 30/10/2026 : COM4 ferme, worst_silence_s = 0.3.)
+            ages = [
+                NEVER_SPOKE if (not h["open"] or h["silence_s"] is None)
+                else h["silence_s"]
+                for h in per.values()
+            ]
+            down = [n for n, h in per.items()
+                    if not h["open"] or h["silence_s"] is None]
             self._json(200, {
                 "doorbells": per,
-                "worst_silence_s": max(ages) if ages else None,
+                "worst_silence_s": max(ages) if ages else NEVER_SPOKE,
+                "down": down,
                 "count": len(per),
             })
         elif parsed.path == "/read":
