@@ -366,9 +366,25 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+DEFAULT_TOKEN = "change-me"
+
+
 def main() -> None:
     if not LINKS:
         raise SystemExit("Aucune doorbell configurée (dict DOORBELLS vide).")
+    if TOKEN == DEFAULT_TOKEN:
+        # REFUS DE DEMARRER, et c'est voulu. Cet agent execute des commandes
+        # shell ROOT sur les doorbells et ecoute sur tout le reseau : tourner
+        # avec le jeton d'exemple revient a laisser les portes ouvertes a qui
+        # est sur le LAN. Arrive le 19/10/2026 — une commande de migration a
+        # recopie le gabarit dans doorbells.json, et PERSONNE ne l'a vu pendant
+        # onze jours. Un agent qui refuse de demarrer declenche l'alerte de
+        # surveillance ; un agent qui demarre mal ne declenche rien.
+        raise SystemExit(
+            "TOKEN non configure : il vaut encore la valeur d'exemple "
+            f"'{DEFAULT_TOKEN}'. Mets un jeton propre dans doorbells.json "
+            "(champ \"token\") ET dans l'en-tete X-Token cote Home Assistant."
+        )
     print(f"[agent] doorbells: {', '.join(LINKS)}")
     print(f"[agent] HTTP sur 0.0.0.0:{HTTP_PORT} - endpoints /apply /send /read (param id)")
     ThreadingHTTPServer(("0.0.0.0", HTTP_PORT), Handler).serve_forever()
