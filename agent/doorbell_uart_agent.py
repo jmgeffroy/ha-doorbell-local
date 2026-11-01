@@ -26,6 +26,7 @@ Endpoints (jeton partagé obligatoire dans l'en-tête X-Token) :
   POST /send  {"id":"<nom>","cmd"} -> commande shell arbitraire sur la doorbell
   GET  /read?id=<nom>              -> dernières lignes de la console UART
   GET  /health                     -> silence_s par doorbell (surveillance HA)
+  POST /relay?id=<porte>           -> impulsion temporisee sur le relais Modbus
 
 SÉCURITÉ : cet agent relaie des SHELLS ROOT. À n'exposer que sur un LAN de
 confiance (idéalement un VLAN isolé), change le TOKEN, ne l'ouvre JAMAIS sur Internet.
@@ -34,6 +35,8 @@ from __future__ import annotations
 
 import json
 import re
+import socket
+import struct
 import threading
 import time
 import urllib.request
@@ -70,6 +73,16 @@ DOORBELLS = {
     #     "file_url": "http://homeassistant.local:8123/local/ICCardDB0_portail.ext",
     # },
 }
+# --- Relais Modbus/TCP qui commandent les gaches ------------------------------
+# Optionnel. Une carte Ethernet (Waveshare Modbus POE ETH Relay) remplace le
+# relais WiFi : plus de dependance au sans-fil sur le chemin d'ouverture.
+#
+# Le module tient LUI-MEME la temporisation (commande « flash ON ») : la gache
+# se relache meme si Home Assistant, le reseau ou cet agent disparaissent
+# pendant l'ouverture. C'est la raison d'etre de ce montage — personne d'autre
+# que le relais ne doit decider de refermer une porte.
+RELAYS: dict = {}
+
 # --- Configuration locale, HORS du code --------------------------------------
 # `doorbells.json`, a cote de ce script, ECRASE TOKEN et DOORBELLS ci-dessus :
 #   {"token": "...", "doorbells": {"sous-sol": {"port": "COM4", ...}}}
@@ -82,6 +95,7 @@ if _CONF.exists():
     _conf = json.loads(_CONF.read_text(encoding="utf-8-sig"))
     TOKEN = _conf.get("token", TOKEN)
     DOORBELLS = _conf.get("doorbells", DOORBELLS)
+    RELAYS = _conf.get("relays", RELAYS)
     print(f"[agent] configuration lue dans {_CONF.name}")
 # ---------------------------------------------------------
 
@@ -140,6 +154,42 @@ RE_CARD_NONE = re.compile(r"NO card", re.I)
 # PAS un numero d'utilisateur, et l'attribuer ferait mentir le journal.
 UNKNOWN_USER = 65535
 CARD_WINDOW = 3.0
+
+
+def modbus_flash(host: str, port: int, unit: int, channel: int, tenths: int) -> None:
+    """Ferme un relais pour `tenths` x 100 ms, puis il se rouvre TOUT SEUL.
+
+    Fonction 0x05 sur le registre 0x0200+voie, la valeur portant la duree
+    (max 0x7FFF). Mesure du 01/11/2026 sur un Waveshare 8 voies : voie 1
+    fermee a 2 s, rouverte a 7 s pour une consigne de 5 s.
+
+    On n'utilise PAS une simple ecriture de bobine : elle fermerait le relais
+    sans rien pour le rouvrir, et une gache resterait ouverte si quoi que ce
+    soit tombait entre-temps.
+    """
+    pdu = struct.pack(">BHH", 0x05, 0x0200 + channel, tenths)
+    frame = struct.pack(">HHHB", 1, 0, len(pdu) + 1, unit) + pdu
+    with socket.create_connection((host, port), timeout=3.0) as sock:
+        sock.sendall(frame)
+        head = sock.recv(7)
+        if len(head) < 7:
+            raise OSError("reponse Modbus tronquee")
+        rest = sock.recv(max(0, struct.unpack(">H", head[4:6])[0] - 1))
+        if rest and rest[0] & 0x80:
+            raise OSError(f"exception Modbus {rest[1] if len(rest) > 1 else '?'}")
+
+
+def relay_alive() -> bool | None:
+    """Le boitier de relais repond-il ? None si aucun n'est configure."""
+    if not RELAYS:
+        return None
+    try:
+        with socket.create_connection(
+            (RELAYS["host"], RELAYS.get("port", 502)), timeout=0.6
+        ):
+            return True
+    except OSError:
+        return False
 
 
 class Link:
@@ -362,6 +412,7 @@ class Handler(BaseHTTPRequestHandler):
             down = [n for n, h in per.items()
                     if not h["open"] or h["silence_s"] is None]
             self._json(200, {
+                "relay_ok": relay_alive(),
                 "doorbells": per,
                 "worst_silence_s": max(ages) if ages else NEVER_SPOKE,
                 "down": down,
@@ -387,7 +438,28 @@ class Handler(BaseHTTPRequestHandler):
             data = {}
         name = (qs.get("id") or [data.get("id", "")])[0]
 
-        if parsed.path == "/apply":
+        if parsed.path == "/relay":
+            door = (RELAYS.get("doors") or {}).get(name)
+            if not door:
+                self._json(404, {"error": f"porte inconnue: {name!r}",
+                                 "known": list((RELAYS.get("doors") or {}))})
+                return
+            tenths = int(round(float(data.get("seconds", door.get("seconds", 5))) * 10))
+            try:
+                modbus_flash(
+                    RELAYS["host"], RELAYS.get("port", 502), RELAYS.get("unit", 1),
+                    int(door["channel"]), tenths,
+                )
+            except Exception as err:  # noqa: BLE001
+                # Dire l'echec, et non pas « c'est parti » : une gache qui ne
+                # s'ouvre pas doit se voir dans Home Assistant.
+                print(f"[relais] {name}: {err}")
+                self._json(502, {"error": str(err), "door": name})
+                return
+            print(f"[relais] {name}: impulsion {tenths / 10:.1f} s")
+            self._json(200, {"status": "pulsed", "door": name,
+                             "seconds": tenths / 10})
+        elif parsed.path == "/apply":
             link = self._link(name)
             if link:
                 steps = apply_steps(link.file_url)

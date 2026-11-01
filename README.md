@@ -364,3 +364,39 @@ MIT — see [LICENSE](LICENSE).
 
 [hacs-badge]: https://img.shields.io/badge/HACS-Custom-41BDF5.svg
 [hacs-url]: https://github.com/hacs/integration
+
+## Driving the strikes from a wired relay
+
+A Waveshare *Modbus POE ETH Relay* replaces a Wi-Fi relay on the opening path:
+PoE for power, Ethernet for control, dry contacts for the strikes.
+
+What makes it the right part is not the wiring but **the timed pulse**: Modbus
+function `0x05` on register `0x0200 + channel`, the value carrying the duration
+in units of 100 ms (max `0x7FFF`). The module holds the count itself, so the
+strike releases even if Home Assistant, the network or the agent vanish
+mid-opening. Measured: channel 1 closed at 2 s, open again at 7 s for a 5 s
+request.
+
+Never replace that with a plain coil write followed by a `delay` in an
+automation — an outage at the wrong moment would leave the door open.
+
+The agent exposes `POST /relay?id=<door>`; the door-to-channel map lives in
+`doorbells.json` and nowhere else:
+
+```json
+"relays": {
+  "host": "192.168.68.70", "port": 502, "unit": 1,
+  "doors": { "sous-sol": {"channel": 0, "seconds": 5},
+             "rdc":      {"channel": 1, "seconds": 5} }
+}
+```
+
+`GET /health` then also reports `relay_ok`, so the watchdog sees the box die.
+
+Out of the box the module speaks neither Modbus TCP nor your subnet: it sits on
+a factory address with the protocol off, which is why nothing answers on port
+502. Configure it with Waveshare's **VirCom** (Windows), which finds it by
+broadcast across subnets: set a static address, *Transfer Protocol* →
+*Modbus TCP*, gateway type *non-storage*. Then reserve that address on the
+router — static or not, nothing stops the DHCP server handing it to someone
+else.

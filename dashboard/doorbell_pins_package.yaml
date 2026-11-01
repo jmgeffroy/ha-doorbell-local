@@ -310,6 +310,21 @@ script:
 # `doorbell_id` désigne l'entrée du dict DOORBELLS de l'agent : une seule commande
 # suffit donc pour autant de doorbells que tu veux.
 rest_command:
+  # Impulsion temporisee sur le relais Modbus qui commande une gache.
+  # `door` reprend les memes identifiants que les doorbells (sous-sol, rdc) :
+  # la correspondance porte -> voie du boitier vit dans doorbells.json, cote
+  # agent, et nulle part ailleurs.
+  #
+  # LA DUREE EST TENUE PAR LE BOITIER, pas par Home Assistant. Si HA, le reseau
+  # ou l'agent disparaissent pendant l'ouverture, la gache se relache quand
+  # meme. Ne jamais remplacer cet appel par un `switch.turn_on` suivi d'un
+  # `delay` : ce jour-la, une coupure laisserait la porte ouverte.
+  doorbell_relay:
+    url: "http://WINDOWS_HOST_IP:8765/relay?id={{ door }}"
+    method: POST
+    headers:
+      X-Token: "change-me"
+
   doorbell_apply_uart:
     url: "http://WINDOWS_HOST_IP:8765/apply?id={{ doorbell_id }}"
     method: POST
