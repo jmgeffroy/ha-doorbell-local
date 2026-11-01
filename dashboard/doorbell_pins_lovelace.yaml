@@ -157,7 +157,7 @@ sections:
             {%- set dev = devices.get(sel) -%}
             {%- set id = device_id(dev) if dev else none -%}
             {%- set ents = (device_entities(id) if id else [])
-                           | select('match', '^(text|button)\.') | list -%}
+                           | select('match', '^(text|button|switch)\.') | list -%}
             {%- set ns = namespace(rows=[]) -%}
             {%- for e in state_attr(sensors.get(sel, ''), 'entries') or [] -%}
               {%- set tag = e.label if e.label else e.uid -%}

@@ -138,10 +138,16 @@ the same UID into each roster is therefore enough — tick *Inscrire sur toutes
 les portes*, or call `doorbell_local.add_card` once per `entry_id`. Then Apply on
 each door.
 
-For a badge that was only registered on one door, each entry carries a
-**Copier sur les autres portes** button next to its *Supprimer* — it writes the
-UID, label, PIN and contact into every other doorbell's roster. The button is
-unavailable while a single doorbell is configured, where it would mean nothing.
+For a badge registered on one door only, each entry carries **one switch per
+other door** — *« ouvre Doorbell RDC »*. On adds the UID to that door's roster,
+off removes it. A switch, not a button: it answers *does this badge open that
+door?* in the same place it changes the answer, and it can be turned back.
+No switches appear while a single doorbell is configured.
+
+**Identity follows the badge.** Editing a label, email, phone or PIN writes it
+to every door that holds the same UID. Only *membership* is per door — that is
+what the switches are for. Without this, correcting an email meant retyping it
+door by door, and the first one forgotten made the record diverge in silence.
 
 #### Saying *which* doorbell
 
