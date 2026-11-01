@@ -76,6 +76,55 @@ add_code:
         config_entry:
           integration: doorbell_local
 
+add_card:
+  name: Inscrire un badge physique
+  description: >-
+    Ajoute une carte RFID au roster par son UID, sans passer par le menu
+    d'administration de la doorbell. Le fichier ICCardDB fait autorite : la
+    doorbell accepte la carte qu'il decrit, meme si elle ne l'a jamais enrolee.
+    C'est ainsi qu'UN MEME BADGE OUVRE PLUSIEURS PORTES — inscrire le meme UID
+    sur chacune. A APPLIQUER ensuite (pont UART).
+  fields:
+    uid:
+      name: UID du badge
+      description: >-
+        UID hexadecimal. Il s'affiche dans le capteur « Staged PIN codes » sous
+        `last_card` des qu'on presente la carte sur le lecteur.
+      required: true
+      example: "b4329fdd"
+      selector: { text: }
+    label:
+      name: Libelle
+      description: Nom du porteur. Vivement conseille — c'est lui qui identifie l'entree a l'ecran.
+      required: false
+      example: "Femme de menage"
+      selector: { text: }
+    pin:
+      name: PIN (optionnel)
+      description: >-
+        4 chiffres, FACULTATIF : un badge ouvre sans code. Ne le remplir que
+        pour exiger un second facteur. Jamais journalise.
+      required: false
+      selector: { text: }
+    email:
+      name: Email (optionnel)
+      required: false
+      selector: { text: { type: email } }
+    phone:
+      name: Telephone (optionnel)
+      required: false
+      selector: { text: { type: tel } }
+    entry_id:
+      name: Doorbell
+      description: >-
+        Laquelle. Facultatif tant qu'il n'y en a qu'une ; OBLIGATOIRE des qu'il
+        y en a deux — l'integration refuse de deviner plutot que d'ouvrir la
+        mauvaise porte.
+      required: false
+      selector:
+        config_entry:
+          integration: doorbell_local
+
 update_contact:
   name: Modifier le contact d'une entrée
   description: >-

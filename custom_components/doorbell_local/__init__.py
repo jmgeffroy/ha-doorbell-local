@@ -36,6 +36,7 @@ from .const import (
     DEFAULT_PORT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    SERVICE_ADD_CARD,
     SERVICE_ADD_CODE,
     SERVICE_IMPORT_CARDS,
     SERVICE_REFRESH,
@@ -58,6 +59,7 @@ _SERVICES = (
     SERVICE_REFRESH,
     SERVICE_SET_PIN,
     SERVICE_ADD_CODE,
+    SERVICE_ADD_CARD,
     SERVICE_REMOVE_ENTRY,
     SERVICE_UPDATE_CONTACT,
     SERVICE_IMPORT_CARDS,
@@ -200,6 +202,22 @@ def _async_register_services(hass: HomeAssistant) -> None:
             raise HomeAssistantError("UID absent du roster")
         await roster.commit()
 
+    async def handle_add_card(call: ServiceCall) -> None:
+        # le PIN n'est jamais loggué
+        ctx = _resolve(hass, call)
+        roster = ctx["roster"]
+        pin = str(call.data.get(ATTR_PIN, "") or "")
+        added = roster.add_card(
+            _parse_uid(call.data[ATTR_UID]),
+            label=call.data.get(ATTR_LABEL, ""),
+            pin=_validate_pin(pin) if pin else "",
+            email=call.data.get(ATTR_EMAIL, ""),
+            phone=call.data.get(ATTR_PHONE, ""),
+        )
+        if not added:
+            raise HomeAssistantError("UID déjà présent dans le roster")
+        await roster.commit()
+
     async def handle_import_cards(call: ServiceCall) -> None:
         ctx = _resolve(hass, call)
         ctx["roster"].import_cards(ctx["coordinator"].data or [])
@@ -256,6 +274,19 @@ def _async_register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_REMOVE_ENTRY, handle_remove_entry,
         schema=vol.Schema({vol.Required(ATTR_UID): cv.string, **entry_field}),
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ADD_CARD, handle_add_card,
+        schema=vol.Schema(
+            {
+                vol.Required(ATTR_UID): cv.string,
+                vol.Optional(ATTR_LABEL, default=""): cv.string,
+                vol.Optional(ATTR_PIN, default=""): cv.string,
+                vol.Optional(ATTR_EMAIL, default=""): cv.string,
+                vol.Optional(ATTR_PHONE, default=""): cv.string,
+                **entry_field,
+            }
+        ),
     )
     hass.services.async_register(
         DOMAIN, SERVICE_IMPORT_CARDS, handle_import_cards, schema=vol.Schema(entry_field),

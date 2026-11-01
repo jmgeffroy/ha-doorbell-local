@@ -88,6 +88,39 @@ class Roster:
                 }
             )
 
+    def add_card(
+        self,
+        uid: int,
+        label: str = "",
+        pin: str = "",
+        email: str = "",
+        phone: str = "",
+    ) -> bool:
+        """Inscrit un BADGE PHYSIQUE par son UID. Retourne False s'il y etait deja.
+
+        Le fichier ICCardDB fait autorite : la doorbell accepte la carte qu'il
+        decrit, qu'elle l'ait enrolee elle-meme ou non. C'est ce qui permet
+        qu'UN MEME BADGE OUVRE PLUSIEURS PORTES — on inscrit le meme UID dans
+        le roster de chacune, sans repasser par le lecteur.
+
+        `pin` reste facultatif, contrairement a set_pin : un badge ouvre sans
+        code, et exiger un PIN ici obligeait a en inventer un.
+        """
+        if self._find(uid):
+            return False
+        self.entries.append(
+            {
+                "uid": uid,
+                "type": "user",
+                "pin": pin,
+                "label": label,
+                "email": email,
+                "phone": phone,
+                "virtual": False,
+            }
+        )
+        return True
+
     def add_code(self, pin: str, label: str, email: str = "", phone: str = "") -> int:
         """Ajoute un PIN indépendant (carte virtuelle, UID auto). Retourne l'UID."""
         used = {e["uid"] for e in self.entries}

@@ -126,6 +126,21 @@ RE_UNLOCK = re.compile(r"Dev Lock on!")
 RE_USER_PIN = re.compile(r"User\s+(\d+)\s+pwd is ok", re.I)
 RE_CARD = re.compile(r"card.*userid:\s*(\d+)", re.I)
 
+# Badge presente sur le lecteur, connu ou non :
+#   15:32:33 idcard num 0 b4329fdd
+#   15:32:33 NO card,ICCard type:0 userid:65535
+# La premiere ligne donne l'UID d'un seul tenant. La seconde dit si la carte
+# est enrolee : `NO card` / `userid:65535` = inconnue.
+# NE PAS se rabattre sur la ligne `IdcardThread ... value <uid>` : c'est un
+# debogage noyau, et le flot de la console la coupe en deux une fois sur deux
+# (mesure du 01/11/2026).
+RE_CARD_SEEN = re.compile(r"idcard num \d+ ([0-9a-fA-F]{6,16})")
+RE_CARD_NONE = re.compile(r"NO card", re.I)
+# Le firmware rend 65535 quand la carte n'est rattachee a personne : ce n'est
+# PAS un numero d'utilisateur, et l'attribuer ferait mentir le journal.
+UNKNOWN_USER = 65535
+CARD_WINDOW = 3.0
+
 
 class Link:
     """Une liaison série vers une doorbell (thread lecteur + buffer + envoi)."""
@@ -144,6 +159,10 @@ class Link:
         # une console vivante d'un adaptateur fige : le processus va bien, le
         # port est ouvert, et plus rien n'arrive. Vu deux fois en 2026.
         self._last_line_at = 0.0
+        # Dernier badge presente, connu ou non : {uid, ts, known}. Sert au mode
+        # apprentissage cote HA — on lit l'UID sans passer par le menu
+        # d'administration de la doorbell.
+        self._last_card: dict | None = None
         threading.Thread(target=self._reader, daemon=True).start()
 
     def _open(self) -> serial.Serial:
@@ -184,16 +203,33 @@ class Link:
         `Dev Lock on!`. On retient donc l'identite au passage pour l'attacher a
         l'ouverture qui suit — c'est ce qui permet un journal des acces.
         """
+        now = time.time()
+
+        m = RE_CARD_SEEN.search(line)
+        if m:
+            self._last_card = {"uid": m.group(1).lower(), "ts": now, "known": None}
+            return
+
+        if RE_CARD_NONE.search(line):
+            if self._last_card and now - self._last_card["ts"] <= CARD_WINDOW:
+                self._last_card["known"] = False
+            return
+
         m = RE_USER_PIN.search(line) or RE_CARD.search(line)
         if m:
+            who = int(m.group(1))
+            if who == UNKNOWN_USER:
+                return
             source = "keypad" if "pwd" in line.lower() else "card"
-            self._last_user = (int(m.group(1)), source, time.time())
+            self._last_user = (who, source, now)
+            if source == "card" and self._last_card and \
+                    now - self._last_card["ts"] <= CARD_WINDOW:
+                self._last_card["known"] = True
             return
 
         if not RE_UNLOCK.search(line):
             return
 
-        now = time.time()
         if now - self._last_event < EVENT_MIN_INTERVAL:
             return  # le firmware peut repeter la ligne
         self._last_event = now
@@ -252,11 +288,23 @@ class Link:
         invisible a qui ne regarde que le processus.
         """
         now = time.time()
+        card = None
+        if self._last_card:
+            card = {
+                "uid": self._last_card["uid"],
+                "age_s": round(now - self._last_card["ts"], 1),
+                "known": self._last_card["known"],
+            }
         return {
             "port": self.port,
             "open": self._ser is not None,
             "silence_s": round(now - self._last_line_at, 1) if self._last_line_at else None,
             "lines": len(self._lines),
+            # Le dernier badge presente. DELIBEREMENT ici, et pas dans un
+            # webhook : les automatisations d'ouverture ne regardent que le nom
+            # de la doorbell, un evenement « badge vu » sur ce canal OUVRIRAIT
+            # LA PORTE a toute carte inconnue.
+            "last_card": card,
         }
 
     def tail(self, n: int = 60) -> list[str]:

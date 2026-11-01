@@ -109,6 +109,31 @@ DOORBELLS = {
 }
 ```
 
+#### Enrolling a badge, and one badge for several doors
+
+The console announces the UID of **any** card presented to the reader, enrolled
+or not:
+
+```
+15:32:33 idcard num 0 b4329fdd
+15:32:33 NO card,ICCard type:0 userid:65535      <- userid 65535 = unknown card
+```
+
+The agent keeps the last one and publishes it in `GET /health` as `last_card`
+(uid, age, known). Present the card, give it a label, press **Inscrire le badge
+présenté** — no need for the doorbell's own admin menu.
+
+This UID deliberately travels through the health endpoint and **not** through
+the unlock webhook. Unlock automations only check which doorbell sent the event,
+so a "card seen" message on that channel would open the door for any unknown
+card.
+
+**One badge, several doors.** The ICCardDB file is the authority: a doorbell
+accepts the card the file describes, whether or not it ever enrolled it. Writing
+the same UID into each roster is therefore enough — tick *Inscrire sur toutes
+les portes*, or call `doorbell_local.add_card` once per `entry_id`. Then Apply on
+each door.
+
 #### Saying *which* doorbell
 
 Every service takes an optional **`entry_id`**. With a single doorbell you may omit it.

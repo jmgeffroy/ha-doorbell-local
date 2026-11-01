@@ -22,6 +22,15 @@ input_select:
       - Sous-sol
       - RDC
 
+# Coche pour qu'un badge appris soit inscrit sur TOUTES les portes de la table,
+# et pas seulement sur celle du selecteur. C'est ce qui permet qu'une meme carte
+# ouvre partout : le fichier ICCardDB fait autorite, il suffit donc d'y inscrire
+# le meme UID de chaque cote — la doorbell n'a pas besoin de l'avoir enrolee.
+input_boolean:
+  doorbell_all_doors:
+    name: Inscrire sur toutes les portes
+    icon: mdi:door-open
+
 input_text:
   doorbell_new_pin:
     name: Nouveau PIN (4 chiffres)
@@ -119,6 +128,58 @@ script:
         target: { entity_id: input_text.doorbell_new_phone }
         data: { value: "" }
       # NB : pas d'auto-apply — on crée N codes puis on clique « Appliquer » 1×.
+
+  # --- Apprendre un badge presente sur le lecteur ----------------------------
+  # La console de la doorbell annonce l'UID de TOUTE carte presentee, connue ou
+  # non (`idcard num 0 b4329fdd`). L'agent le retient, le point de sante le
+  # publie, et ce script l'inscrit au roster. Plus besoin du menu
+  # d'administration de la doorbell.
+  #
+  # POURQUOI PAS UN WEBHOOK : les automatisations d'ouverture ne regardent que
+  # le nom de la doorbell. Un evenement « badge vu » sur ce canal OUVRIRAIT LA
+  # PORTE a toute carte inconnue. L'UID transite donc par le capteur de sante,
+  # que HA interroge deja, et rien d'autre ne change.
+  doorbell_learn_card:
+    alias: "Doorbell — inscrire le badge presente"
+    icon: mdi:card-account-details-outline
+    mode: single
+    variables:
+      targets: *doorbell_targets
+      sel: "{{ states('input_select.doorbell_target') }}"
+      agents: "{{ state_attr('sensor.doorbell_agent_silence', 'doorbells') or {} }}"
+      agent_key: "{{ targets.get(sel, {}).get('agent', '') }}"
+      card: "{{ agents.get(agent_key, {}).get('last_card') or {} }}"
+      # Au-dela de deux minutes, on ne sait plus de quelle carte il s'agit :
+      # inscrire un UID vieux d'une heure donnerait un acces a l'aveugle.
+      fresh: "{{ card.get('age_s', 9999) | float(9999) < 120 }}"
+      doors: >-
+        {{ targets.values() | list if is_state('input_boolean.doorbell_all_doors', 'on')
+           else [targets.get(sel, {})] }}
+    sequence:
+      - condition: template
+        value_template: "{{ card.get('uid', '') | length > 0 and fresh }}"
+        alias: "Un badge a ete presente il y a moins de 2 minutes"
+      - repeat:
+          for_each: "{{ doors }}"
+          sequence:
+            # continue_on_error : un UID deja present sur une porte ne doit pas
+            # empecher de l'inscrire sur les autres.
+            - service: doorbell_local.add_card
+              continue_on_error: true
+              data:
+                entry_id: "{{ repeat.item.entry }}"
+                uid: "{{ card.uid }}"
+                label: "{{ states('input_text.doorbell_new_label') }}"
+      - service: input_text.set_value
+        target: { entity_id: input_text.doorbell_new_label }
+        data: { value: "" }
+      - service: persistent_notification.create
+        data:
+          notification_id: doorbell_learn
+          title: "Doorbell"
+          message: >-
+            Badge {{ card.uid }} inscrit sur {{ doors | count }} porte(s).
+            Clique « Appliquer » sur CHACUNE pour que ce soit effectif.
 
   # --- Appliquer le fichier sur la doorbell ---------------------------------
   # Appelle l'agent UART (doorbell_uart_agent.py) qui tape la ligne wget+reboot

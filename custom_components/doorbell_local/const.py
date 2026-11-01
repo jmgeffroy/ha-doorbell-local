@@ -21,6 +21,7 @@ SERVICE_REFRESH = "refresh"
 # Services roster/fichier (gestion des PIN via ICCardDB + pont UART)
 SERVICE_SET_PIN = "set_pin"           # PIN d'un badge (ou crée l'entrée)
 SERVICE_ADD_CODE = "add_code"         # PIN indépendant (carte virtuelle)
+SERVICE_ADD_CARD = "add_card"         # badge physique, par son UID
 SERVICE_REMOVE_ENTRY = "remove_entry"
 SERVICE_UPDATE_CONTACT = "update_contact"  # change label/email/phone d'une entrée
 SERVICE_IMPORT_CARDS = "import_cards"  # amorcer le roster depuis le device
