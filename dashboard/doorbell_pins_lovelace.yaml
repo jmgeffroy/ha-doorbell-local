@@ -58,13 +58,18 @@ sections:
                'RDC': 'sensor.doorbell_rdc_staged_pin_codes',
              } -%}
           {% set src = sensors.get(states('input_select.doorbell_target'), '') -%}
-          | Libellé | PIN | Téléphone | Email | Envoyer | UID |
-          |---|:---:|---|---|:---:|---|
+          | Type | Libellé | PIN | Téléphone | Email | Envoyer | UID |
+          |:---:|---|:---:|---|---|:---:|---|
           {% for e in state_attr(src,'entries') or [] -%}
           {% set digits = (e.phone or '') | regex_replace('[^0-9]','') -%}
           {% set msg = ('Votre code d\'accès à la porte : ' ~ (e.pin or '') ~ ' (tapez-le puis #)') | urlencode -%}
           {% set wa = ('[📲](https://wa.me/' ~ digits ~ '?text=' ~ msg ~ ')') if (digits and e.pin) else '—' -%}
-          | {{ e.label or '—' }} | `{{ e.pin or '—' }}` | {{ e.phone or '—' }} | {{ e.email or '—' }} | {{ wa }} | `{{ e.uid }}` |
+          {#- `virtual` distingue un code cree de toutes pieces (carte virtuelle)
+              d'un vrai badge lu par le lecteur RFID. Sans cette colonne il faut
+              deviner a la tete de l'UID, ce qui ne marche pas : les deux se
+              ressemblent. -#}
+          {% set kind = 'code' if e.virtual else 'badge' -%}
+          | {{ kind }} | {{ e.label or '—' }} | `{{ e.pin or '—' }}` | {{ e.phone or '—' }} | {{ e.email or '—' }} | {{ wa }} | `{{ e.uid }}` |
           {% endfor -%}
       - type: button
         name: Appliquer sur la porte
