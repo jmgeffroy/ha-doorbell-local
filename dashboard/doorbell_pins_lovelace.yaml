@@ -41,39 +41,40 @@ sections:
   # --- Apprendre un badge ----------------------------------------------------
   # Presenter la carte sur le lecteur : la console de la doorbell annonce son
   # UID, connu ou non, et l'agent le publie dans le capteur de sante. Le bouton
-  # l'inscrit au roster avec le libelle saisi ci-dessus.
+  # l'inscrit au roster avec le libelle saisi plus haut.
   # Demande le package `doorbell_watchdog.yaml` (c'est lui qui porte le capteur).
+  #
+  # UNE SEULE carte, pas quatre : la mise en page en sections range les cartes
+  # cote a cote, et quatre cartes separees s'eparpillent. Le bouton devient une
+  # LIGNE de la carte `entities`, comme les « Appuyer » de Modifier / Supprimer.
   - type: grid
     cards:
       - type: heading
         heading: Inscrire un badge
         icon: mdi:card-account-details-outline
-      - type: markdown
-        content: |
-          {%- set agents = {'Sous-sol': 'sous-sol', 'RDC': 'rdc'} -%}
-          {%- set a = agents.get(states('input_select.doorbell_target'), '') -%}
-          {%- set d = (state_attr('sensor.doorbell_agent_silence', 'doorbells') or {}) -%}
-          {%- set c = (d.get(a) or {}).get('last_card') -%}
-          {%- if c -%}
-          **`{{ c.uid }}`** — {{ 'déjà connu' if c.known else 'inconnu de cette porte' }},
-          vu il y a {{ c.age_s | round(0) }} s
-          {%- if (c.age_s | float(9999)) >= 120 %}
-
-          *Trop ancien : represente la carte sur le lecteur.*
-          {%- endif -%}
-          {%- else -%}
-          Aucune carte présentée depuis le démarrage de l'agent.
-          {%- endif -%}
-      - type: entities
-        entities:
-          - entity: input_boolean.doorbell_all_doors
-      - type: button
-        name: Inscrire le badge présenté
-        icon: mdi:card-plus
-        tap_action:
-          action: perform-action
-          perform_action: script.doorbell_learn_card
-        show_state: false
+      - type: vertical-stack
+        cards:
+          - type: markdown
+            content: |
+              {%- set agents = {'Sous-sol': 'sous-sol', 'RDC': 'rdc'} -%}
+              {%- set a = agents.get(states('input_select.doorbell_target'), '') -%}
+              {%- set d = (state_attr('sensor.doorbell_agent_silence', 'doorbells') or {}) -%}
+              {%- set c = (d.get(a) or {}).get('last_card') -%}
+              {%- if c -%}
+              Badge **`{{ c.uid }}`** — {{ 'déjà connu' if c.known else 'inconnu ici' }}, vu il y a {{ c.age_s | round(0) }} s
+              {%- else -%}
+              Présente une carte sur le lecteur, puis attends une minute.
+              {%- endif -%}
+          - type: entities
+            entities:
+              - entity: input_boolean.doorbell_all_doors
+                name: Toutes les portes
+              - type: button
+                name: Badge présenté
+                action_name: Inscrire
+                tap_action:
+                  action: perform-action
+                  perform_action: script.doorbell_learn_card
 
   - type: grid
     cards:
