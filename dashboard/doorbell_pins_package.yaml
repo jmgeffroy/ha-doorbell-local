@@ -58,6 +58,8 @@ script:
           #   cle   = ce qu'affiche input_select.doorbell_target, mot pour mot
           #   entry = l'entree d'integration visee (`entry_id` des services)
           #   agent = la cle du dict DOORBELLS de l'agent UART
+          #   sensor = son capteur `..._staged_pin_codes` (Outils de
+          #            developpement -> Etats, filtre `staged_pin_codes`)
           # Trouver un `entry` : Outils de developpement -> Actions ->
           # « Doorbell — Regenerer le fichier » -> choisir la doorbell dans la
           # liste -> basculer en YAML : l'identifiant y est ecrit.
@@ -66,9 +68,11 @@ script:
             Sous-sol:
               entry: "A_RENSEIGNER_1"
               agent: "sous-sol"
+              sensor: "A_RENSEIGNER_3"
             RDC:
               entry: "A_RENSEIGNER_2"
               agent: "rdc"
+              sensor: "A_RENSEIGNER_4"
           target: "{{ targets.get(states('input_select.doorbell_target'), {}) }}"
           pin: "{{ states('input_text.doorbell_new_pin') }}"
           label: "{{ states('input_text.doorbell_new_label') }}"
@@ -160,22 +164,39 @@ script:
     variables:
       targets: *doorbell_targets
       target: "{{ targets.get(states('input_select.doorbell_target'), {}) }}"
+      test_uids:
+        - "f0000000"
+        - "f0000001"
+        - "f0000002"
+        - "f0000003"
+        - "f0000004"
+        - "f0000005"
+        - "f0000006"
+        - "f0000007"
+        - "f0000008"
+      # On ne supprime QUE ce qui est dans la plage ET SANS PIN.
+      # La plage seule ne veut rien dire : elle vient de l'histoire du sous-sol,
+      # ou ces UID etaient des cartes de mise au point. Sur une doorbell
+      # installee plus tard, les MEMES numeros portent les vrais codes —
+      # ils sont simplement les premiers libres. Mesure du 01/11/2026 : la
+      # doorbell RDC avait 3541, 3542 et 3543 en f0000000..2. Le script
+      # d'origine les aurait tous les trois effaces.
+      doomed: >-
+        {{ (state_attr(target.get('sensor', ''), 'entries') or [])
+           | selectattr('uid', 'in', test_uids)
+           | rejectattr('pin_set')
+           | map(attribute='uid') | list }}
     sequence:
       - condition: template
         value_template: >-
-          {{ not target.get('entry', 'A_RENSEIGNER').startswith('A_RENSEIGNER') }}
-        alias: "Doorbell choisie et renseignee"
+          {{ not target.get('entry', 'A_RENSEIGNER').startswith('A_RENSEIGNER')
+             and not target.get('sensor', 'A_RENSEIGNER').startswith('A_RENSEIGNER') }}
+        alias: "Doorbell choisie, entree et capteur renseignes"
+      - condition: template
+        value_template: "{{ doomed | count > 0 }}"
+        alias: "Il y a bien quelque chose a nettoyer"
       - repeat:
-          for_each:
-            - "f0000000"
-            - "f0000001"
-            - "f0000002"
-            - "f0000003"
-            - "f0000004"
-            - "f0000005"
-            - "f0000006"
-            - "f0000007"
-            - "f0000008"
+          for_each: "{{ doomed }}"
           sequence:
             # continue_on_error : un UID déjà absent ne stoppe pas la boucle
             - service: doorbell_local.remove_entry
