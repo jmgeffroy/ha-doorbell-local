@@ -89,18 +89,50 @@ sections:
       - type: heading
         heading: Modifier / Supprimer
         icon: mdi:pencil
+      # Un bloc titre par code, au lieu d'une liste plate de 4 lignes par code
+      # ou plus rien ne se distingue. L'en-tete porte le TYPE (badge physique ou
+      # code virtuel), le libelle et le PIN — c'est ce qu'on cherche en arrivant.
+      #
+      # Le filtre suit `input_select.doorbell_target`, comme le reste de la vue :
+      # les deux tables ci-dessous sont a renseigner, l'une par le NOM DE
+      # L'APPAREIL (elle suit donc les renommages), l'autre par l'IDENTIFIANT DU
+      # CAPTEUR (qui, lui, ne les suit pas).
+      #
+      # PIEGE : le rattachement d'une entite a son code se fait par son LIBELLE,
+      # cherche dans le nom affiche. Deux libelles dont l'un contient l'autre
+      # ("JM" et "JMG") melangeraient leurs lignes. Des libelles distincts.
+      #
+      # Pas de `sort` : l'ordre vient du roster, et trier casserait les blocs.
       - type: custom:auto-entities
         card:
           type: entities
+          title: Modifier / Supprimer
           state_color: true
-        sort:
-          method: friendly_name
+        show_empty: false
         filter:
-          include:
-            - integration: doorbell_local
-              domain: text
-            - integration: doorbell_local
-              domain: button
+          template: >-
+            {%- set devices = {'Sous-sol': 'Doorbell Sous-sol',
+                               'RDC': 'Doorbell RDC'} -%}
+            {%- set sensors = {'Sous-sol': 'sensor.doorbell_192_168_1_50_staged_pin_codes',
+                               'RDC': 'sensor.doorbell_rdc_staged_pin_codes'} -%}
+            {%- set sel = states('input_select.doorbell_target') -%}
+            {%- set dev = devices.get(sel) -%}
+            {%- set id = device_id(dev) if dev else none -%}
+            {%- set ents = (device_entities(id) if id else [])
+                           | select('match', '^(text|button)\.') | list -%}
+            {%- set ns = namespace(rows=[]) -%}
+            {%- for e in state_attr(sensors.get(sel, ''), 'entries') or [] -%}
+              {%- set tag = e.label if e.label else e.uid -%}
+              {%- set kind = 'badge' if not e.virtual else 'code' -%}
+              {%- set head = kind ~ ' — ' ~ tag ~ (' — ' ~ e.pin if e.pin else '') -%}
+              {%- set ns.rows = ns.rows + [{'type': 'section', 'label': head}] -%}
+              {%- for ent in ents -%}
+                {%- if tag in (state_attr(ent, 'friendly_name') or '') -%}
+                  {%- set ns.rows = ns.rows + [ent] -%}
+                {%- endif -%}
+              {%- endfor -%}
+            {%- endfor -%}
+            {{ ns.rows }}
 
   - type: grid
     cards:
