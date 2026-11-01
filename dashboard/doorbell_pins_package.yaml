@@ -204,16 +204,39 @@ script:
         {{ doorbell_id | default(targets.get(states('input_select.doorbell_target'),
            {}).get('agent', 'sous-sol'), true) }}
     sequence:
+      # `response_variable` : SANS LUI, CE SCRIPT MENT. Il affichait « Fichier
+      # envoye » sans jamais regarder si l'agent avait repondu — un jeton qui
+      # ne concorde plus, et l'ordre part dans le vide pendant que l'interface
+      # affiche un succes. Arrive deux fois le 30/10 et le 01/11/2026, dont une
+      # ou la panne a dure onze jours.
       - service: rest_command.doorbell_apply_uart
         data:
           doorbell_id: "{{ target_id }}"
-      - service: persistent_notification.create
-        data:
-          notification_id: doorbell_apply
-          title: "Doorbell"
-          message: >-
-            Fichier envoyé à la doorbell {{ target_id }} (wget + reboot).
-            Le device redémarre (~1 min), puis les codes sont actifs.
+        response_variable: reply
+      - choose:
+          - alias: "L'agent a accepte l'ordre"
+            conditions:
+              - condition: template
+                value_template: "{{ reply.status | default(0) | int == 200 }}"
+            sequence:
+              - service: persistent_notification.create
+                data:
+                  notification_id: doorbell_apply
+                  title: "Doorbell"
+                  message: >-
+                    Fichier envoyé à la doorbell {{ target_id }} (wget + reboot).
+                    Le device redémarre (~1 min), puis les codes sont actifs.
+        default:
+          - service: persistent_notification.create
+            data:
+              notification_id: doorbell_apply
+              title: "Doorbell : L'APPLIQUER A ÉCHOUÉ"
+              message: >-
+                L'agent n'a pas accepté l'ordre pour « {{ target_id }} » —
+                code {{ reply.status | default('aucune réponse') }}.
+                **Les codes n'ont PAS été mis à jour sur la porte.**
+                Un 403 signifie que le jeton `X-Token` de ce paquet ne
+                concorde plus avec celui de `doorbells.json` sur l'agent.
 
   # --- Nettoyer les codes de test (cartes virtuelles f0000000 -> f0000008) ---
   # Supprime d'un coup les 9 codes de test du roster (garde f0000009 si présent).
