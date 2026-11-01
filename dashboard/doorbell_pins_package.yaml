@@ -169,10 +169,20 @@ script:
               data:
                 entry_id: "{{ repeat.item.entry }}"
                 uid: "{{ card.uid }}"
+                # Le formulaire porte deja email et telephone : les ignorer
+                # obligeait a les ressaisir entree par entree ensuite.
                 label: "{{ states('input_text.doorbell_new_label') }}"
-      - service: input_text.set_value
-        target: { entity_id: input_text.doorbell_new_label }
-        data: { value: "" }
+                email: "{{ states('input_text.doorbell_new_email') }}"
+                phone: "{{ states('input_text.doorbell_new_phone') }}"
+      - repeat:
+          for_each:
+            - input_text.doorbell_new_label
+            - input_text.doorbell_new_email
+            - input_text.doorbell_new_phone
+          sequence:
+            - service: input_text.set_value
+              target: { entity_id: "{{ repeat.item }}" }
+              data: { value: "" }
       - service: persistent_notification.create
         data:
           notification_id: doorbell_learn

@@ -128,11 +128,20 @@ the unlock webhook. Unlock automations only check which doorbell sent the event,
 so a "card seen" message on that channel would open the door for any unknown
 card.
 
+**The holder.** The learn button also carries the *Email* and *Téléphone*
+fields of the form into the roster, and every entry exposes them as editable
+rows afterwards — so a badge is tied to a person, not just to a label.
+
 **One badge, several doors.** The ICCardDB file is the authority: a doorbell
 accepts the card the file describes, whether or not it ever enrolled it. Writing
 the same UID into each roster is therefore enough — tick *Inscrire sur toutes
 les portes*, or call `doorbell_local.add_card` once per `entry_id`. Then Apply on
 each door.
+
+For a badge that was only registered on one door, each entry carries a
+**Copier sur les autres portes** button next to its *Supprimer* — it writes the
+UID, label, PIN and contact into every other doorbell's roster. The button is
+unavailable while a single doorbell is configured, where it would mean nothing.
 
 #### Saying *which* doorbell
 
