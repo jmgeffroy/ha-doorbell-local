@@ -16,7 +16,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN
-from .entities import device_info, setup_dynamic_entities
+from .entities import device_info, propagate_identity, setup_dynamic_entities
 from .roster import Roster, roster_signal
 
 # champ -> (suffixe nom, icône, mode, pattern, min, max)
@@ -85,6 +85,10 @@ class _RosterText(TextEntity):
             raise HomeAssistantError("PIN = exactement 4 chiffres")
         self._roster.update(self._uid, {self._field: value})
         await self._roster.commit()
+        # Le meme badge peut vivre sur plusieurs portes : son identite les suit.
+        await propagate_identity(
+            self.hass, self._entry_id, self._uid, {self._field: value}
+        )
 
     async def async_added_to_hass(self) -> None:
         self.async_on_remove(

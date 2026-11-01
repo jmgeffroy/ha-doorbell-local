@@ -52,7 +52,12 @@ from .roster import Roster
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.TEXT, Platform.BUTTON]
+PLATFORMS: list[Platform] = [
+    Platform.SENSOR,
+    Platform.TEXT,
+    Platform.BUTTON,
+    Platform.SWITCH,
+]
 
 _SERVICES = (
     SERVICE_REVOKE_CARD,
